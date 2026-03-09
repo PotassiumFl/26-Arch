@@ -8,10 +8,10 @@ import config_pkg::*;
 package common;
 	// parameters
 	import config_pkg::*;
-	parameter XLEN = 64;
+	parameter XLEN = 64; //寄存器位宽
 	parameter MXLEN = XLEN;
 	parameter LINK_REG_ID = 1;
-	parameter logic[63:0] PCINIT = 64'h00000000_80000000;
+	parameter logic[63:0] PCINIT = 64'h00000000_80000000; //初始化PC地址
 
 	// typedefs
 	typedef logic[127:0] u128;
@@ -70,7 +70,7 @@ package common;
  
 // to ignore some signals
 `define UNUSED_OK(list) \
-    logic _unused_ok = &{1'b0, {list}, 1'b0};
+    logic _unused_ok = &{1'b0, {list}, 1'b0}; //和&list有什么区别？？？
 
 // basic data types
 `define BITS(x) logic[(x)-1:0]
@@ -239,6 +239,37 @@ typedef struct packed {
     logic  last;        // is it the last word?
     word_t data;        // the data from AXI bus
 } cbus_resp_t;
+
+/**
+ * ALU control index
+ */
+typedef enum i5 { 
+    GREATER  = 5'b00001,
+    GREATERU = 5'b10001,
+    LESS     = 5'b00010,
+    LESSU    = 5'b10010,
+    EQUAL    = 5'b00100,
+    NE       = 5'b01000,
+    NONE     = 5'b00000
+} cond_t; //condition type
+
+typedef enum i4 {
+    ADD     = 4'h0,
+    SUB     = 4'h1,
+    MUL     = 4'h2,
+    SLL     = 4'h3,
+    SLT     = 4'h4,
+    SLTU    = 4'h5,
+    XOR     = 4'h6,
+    DIV     = 4'h7,
+    SRL     = 4'h8,
+    SRA     = 4'h9,
+    DIVU    = 4'hA,
+    OR      = 4'hB,
+    REM     = 4'hC,
+    AND     = 4'hD,
+    REMU    = 4'hE
+} opr_t; //operator type
 
 endpackage
 `endif
