@@ -250,26 +250,43 @@ typedef enum i5 {
     LESSU    = 5'b10010,
     EQUAL    = 5'b00100,
     NE       = 5'b01000,
-    NONE     = 5'b00000
+    NOTCOND  = 5'b00000
 } cond_t; //condition type
 
 typedef enum i4 {
-    ADD     = 4'h0,
-    SUB     = 4'h1,
-    MUL     = 4'h2,
-    SLL     = 4'h3,
-    SLT     = 4'h4,
-    SLTU    = 4'h5,
-    XOR     = 4'h6,
-    DIV     = 4'h7,
-    SRL     = 4'h8,
-    SRA     = 4'h9,
-    DIVU    = 4'hA,
-    OR      = 4'hB,
-    REM     = 4'hC,
-    AND     = 4'hD,
-    REMU    = 4'hE
+    NOTOPR  = 4'h0,
+    ADD     = 4'h1,
+    SUB     = 4'h2,
+    MUL     = 4'h3,
+    SLL     = 4'h4,
+    SLT     = 4'h5,
+    SLTU    = 4'h6,
+    XOR     = 4'h7,
+    DIV     = 4'h8,
+    SRL     = 4'h9,
+    SRA     = 4'hA,
+    DIVU    = 4'hB,
+    OR      = 4'hC,
+    REM     = 4'hD,
+    AND     = 4'hE,
+    REMU    = 4'hF
 } opr_t; //operator type
+
+typedef enum i1 {  
+    IMM = 1'b0,
+    REG = 1'b1
+} imm_t;
+
+typedef enum i1 {
+    NORMAL = 1'b0,
+    WORD = 1'b1
+} word_type_t;
+
+typedef struct packed {
+    opr_t       operater;
+    imm_t       imm_index;
+    word_type_t word_index;
+} ALU_ctrl_t;
 
 endpackage
 `endif
