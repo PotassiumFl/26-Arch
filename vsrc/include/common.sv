@@ -241,16 +241,16 @@ typedef struct packed {
 } cbus_resp_t;
 
 /**
- * ALU control index
+ * ALU Control Code
  */
-typedef enum i5 { 
-    GREATER  = 5'b00001,
-    GREATERU = 5'b10001,
-    LESS     = 5'b00010,
-    LESSU    = 5'b10010,
-    EQUAL    = 5'b00100,
-    NE       = 5'b01000,
-    NOTCOND  = 5'b00000
+typedef enum i3 { 
+    NOTCOND  = 3'b000,
+    GREATER  = 3'b001,
+    GREATERU = 3'b010,
+    LESS     = 3'b011,
+    LESSU    = 3'b100,
+    EQUAL    = 3'b101,
+    NE       = 3'b110
 } cond_t; //condition type
 
 typedef enum i4 {
@@ -283,10 +283,29 @@ typedef enum i1 {
 } word_type_t;
 
 typedef struct packed {
-    opr_t       operater;
-    imm_t       imm_index;
+    cond_t      cond_index;
+    opr_t       opr;
     word_type_t word_index;
+    i6          shamt;
 } ALU_ctrl_t;
+
+/**
+ * RegFile Control
+ */
+typedef struct packed {
+    i5 rs1;
+    i5 rs2;
+    i5 wd;
+    i64 write_data;
+} RegFile_ctrl_t;
+
+/**
+ * Decoder Control
+ */
+typedef struct packed {
+    i64 instr;
+} Decoder_ctrl_t;
+
 
 endpackage
 `endif
