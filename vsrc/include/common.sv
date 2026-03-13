@@ -46,11 +46,7 @@ package common;
  */
 
 // Vivado does not support string parameters.
-`ifdef VERILATOR
-`define STRING string
-`else
-`define STRING /* f**k vivado */
-`endif
+                                                                                                                                                                                                                                                                                                  
 
 /**
  * Vivado does not support that members of a packed union
@@ -241,6 +237,17 @@ typedef struct packed {
 } cbus_resp_t;
 
 /**
+ * Mem Control Code
+ */
+typedef struct packed {
+    logic pc_ready;
+    logic data_visit;
+    i64 pc;
+    i64 mem_visit_addr;
+} momery_ctrl_t;
+
+
+/**
  * ALU Control Code
  */
 typedef enum i3 { 
@@ -275,27 +282,31 @@ typedef enum i4 {
 typedef enum i1 {  
     IMM = 1'b0,
     REG = 1'b1
-} imm_t;
+} imm_t; //imm index
 
 typedef enum i1 {
     NORMAL = 1'b0,
-    WORD = 1'b1
-} word_type_t;
+    WORD   = 1'b1
+} word_type_t; //word index
 
 typedef struct packed {
     cond_t      cond_index;
     opr_t       opr;
     word_type_t word_index;
     i6          shamt;
+    i64         operand;
+    i64         operand2;
+    i64         offset;
 } ALU_ctrl_t;
 
 /**
  * RegFile Control
  */
 typedef struct packed {
-    i5 rs1;
-    i5 rs2;
-    i5 wd;
+    i5  rs1;
+    i5  rs2;
+    i5  wd;
+    i1  w_en;
     i64 write_data;
 } RegFile_ctrl_t;
 
@@ -303,9 +314,44 @@ typedef struct packed {
  * Decoder Control
  */
 typedef struct packed {
-    i64 instr;
-} Decoder_ctrl_t;
+    u32 instr;
+    u64 pc;
+} decoder_ctrl_t;
 
+/**
+ * state enum
+ */
+typedef enum i2{
+    IDLE,
+    WAIT_ADDR,
+    WAIT_DATA
+} fetch_state_t;
+
+/**
+ * pipeline register
+ */
+typedef struct packed {
+    logic           valid;
+    decoder_ctrl_t  decoder_ctrl;
+} IF_ID_t;
+
+typedef struct packed {
+    logic           valid;
+    ALU_ctrl_t      ALU_ctrl;
+    RegFile_ctrl_t  RegFile_ctrl;
+} ID_EX_t;
+
+typedef struct packed {
+    logic           valid;
+    i64             alu_result;
+    RegFile_ctrl_t  RegFile_ctrl;
+} EX_MEM_t;
+
+typedef struct packed {
+    logic           valid;
+    i64             result;
+    RegFile_ctrl_t  RegFile_ctrl;
+} MEM_WB_t;
 
 endpackage
 `endif
