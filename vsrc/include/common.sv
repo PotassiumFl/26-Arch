@@ -305,10 +305,13 @@ typedef struct packed {
 typedef struct packed {
     i5  rs1;
     i5  rs2;
+} RegFile_read_t;
+
+typedef struct packed {
     i5  wd;
-    i1  w_en;
-    i64 write_data;
-} RegFile_ctrl_t;
+    u1  w_en;
+    i64 w_data;
+} RegFile_write_t;
 
 /**
  * Decoder Control
@@ -331,26 +334,34 @@ typedef enum i2{
  * pipeline register
  */
 typedef struct packed {
-    logic           valid;
+    logic  valid;
     decoder_ctrl_t  decoder_ctrl;
 } IF_ID_t;
 
 typedef struct packed {
-    logic           valid;
-    ALU_ctrl_t      ALU_ctrl;
-    RegFile_ctrl_t  RegFile_ctrl;
+    logic       valid;
+    u5          wd;
+    decoder_ctrl_t  decoder_ctrl;
+    ALU_ctrl_t  ALU_ctrl;
+    u1          reg_write;
+    u5          rs1;
+    u5          rs2;
 } ID_EX_t;
 
 typedef struct packed {
-    logic           valid;
-    i64             alu_result;
-    RegFile_ctrl_t  RegFile_ctrl;
+    logic  valid;
+    u5      wd;
+    decoder_ctrl_t  decoder_ctrl;
+    i64     alu_result;
+    u1      reg_write;
 } EX_MEM_t;
 
 typedef struct packed {
-    logic           valid;
-    i64             result;
-    RegFile_ctrl_t  RegFile_ctrl;
+    logic  valid;
+    u5      wd;
+    decoder_ctrl_t  decoder_ctrl;
+    i64     result;
+    u1      reg_write;
 } MEM_WB_t;
 
 endpackage
