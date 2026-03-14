@@ -5,77 +5,98 @@
 `include "include/common.sv"
 `endif
 
-module Decoder import common::*;(
-    input  logic            clk,reset,
-
+module Decoder import common::*; (
+    input  logic            clk, reset,
+    input  logic            stall,
     input  IF_ID_t          if_id,
     output ID_EX_t          id_ex,
-    output RegFile_ctrl_t   RegFile_ctrl,
-
-    input i64               rs1_data,
-    input i64               rs2_data
+    output RegFile_read_t   RegFile_read,
+    input  i64              rs1_data,
+    input  i64              rs2_data
 );
 
-    i64     imm;
-    i64     offset;
-    imm_t   imm_ctrl;
+    ID_EX_t id_ex_next;
 
-    assign id_ex.ALU_ctrl.word_index = if_id.decoder_ctrl.instr[3]?WORD:NORMAL;
-    assign imm_ctrl = if_id.decoder_ctrl.instr[5]?REG:IMM;
-    assign id_ex.ALU_ctrl.shamt = if_id.decoder_ctrl.instr[5]?if_id.decoder_ctrl.instr[25:20]:{1'b0,if_id.decoder_ctrl.instr[24:20]};
+    u32 instr;
+    u7  opcode;
+    u3  funct3;
+    logic funct7_30;
+    i64 imm_i;
 
-    assign RegFile_ctrl.rs1 = if_id.decoder_ctrl.instr[19:15];
-    assign RegFile_ctrl.rs2 = if_id.decoder_ctrl.instr[24:20];
-    assign RegFile_ctrl.wd  = if_id.decoder_ctrl.instr[11:7];
+    assign instr     = if_id.decoder_ctrl.instr;
+    assign opcode    = instr[6:0];
+    assign funct3    = instr[14:12];
+    assign funct7_30 = instr[30];
+    assign imm_i     = {{52{instr[31]}}, instr[31:20]};
 
-    always_comb begin : imm_generator
-        case (if_id.decoder_ctrl.instr[6:0]) inside
-            7'b0?1?011:imm = {{53{if_id.decoder_ctrl.instr[31]}},if_id.decoder_ctrl.instr[30:20]};
-            7'b0110111:imm = {{33{if_id.decoder_ctrl.instr[31]}},if_id.decoder_ctrl.instr[30:12],12'b0};
-            default: imm=64'h00000000;
-        endcase
-    end
+    assign RegFile_read.rs1 = instr[19:15];
+    assign RegFile_read.rs2 = instr[24:20];
 
-    always_comb begin : offset_generator
-        case (if_id.decoder_ctrl.instr[6:0])
-            7'b1100011:id_ex.ALU_ctrl.offset = {{52{if_id.decoder_ctrl.instr[31]}},if_id.decoder_ctrl.instr[7],if_id.decoder_ctrl.instr[30:25],if_id.decoder_ctrl.instr[11:8],1'b0};
-            7'b1100111:id_ex.ALU_ctrl.offset = {{53{if_id.decoder_ctrl.instr[31]}},if_id.decoder_ctrl.instr[30:20]};
-            7'b1101111:id_ex.ALU_ctrl.offset = {{44{if_id.decoder_ctrl.instr[31]}},if_id.decoder_ctrl.instr[19:12],if_id.decoder_ctrl.instr[20],if_id.decoder_ctrl.instr[30:21],1'b0};
-            default: id_ex.ALU_ctrl.offset = 64'h00000000;
-        endcase
-    end
+    always_comb begin : main_decoder_logic
+        id_ex_next = '0; 
+        
+        id_ex_next.valid = if_id.valid;
+        id_ex_next.decoder_ctrl = if_id.decoder_ctrl;
+        id_ex_next.rs1 = instr[19:15];
+        id_ex_next.rs2 = instr[24:20];
+        id_ex_next.wd  = instr[11:7];
+        
+        id_ex_next.ALU_ctrl.operand  = rs1_data;
+        id_ex_next.ALU_ctrl.operand2 = rs2_data;
+        id_ex_next.ALU_ctrl.shamt    = {1'b0,instr[24:20]};
 
-    always_comb begin : opr
-        case (if_id.decoder_ctrl.instr[6:0]) inside
-            7'b0?1?011: begin 
-                case (if_id.decoder_ctrl.instr[14:12])
-                    3'b000:id_ex.ALU_ctrl.opr=if_id.decoder_ctrl.instr[30]?SUB:if_id.decoder_ctrl.instr[25]?MUL:ADD;
-                    3'b001:id_ex.ALU_ctrl.opr=SLL;
-                    3'b010:id_ex.ALU_ctrl.opr=SLT;
-                    3'b011:id_ex.ALU_ctrl.opr=SLTU;
-                    3'b100:id_ex.ALU_ctrl.opr=if_id.decoder_ctrl.instr[25]?DIV:XOR;
-                    3'b101:id_ex.ALU_ctrl.opr=if_id.decoder_ctrl.instr[30]?SRA:if_id.decoder_ctrl.instr[25]?DIVU:SRL;
-                    3'b110:id_ex.ALU_ctrl.opr=if_id.decoder_ctrl.instr[25]?REM:OR;
-                    3'b111:id_ex.ALU_ctrl.opr=if_id.decoder_ctrl.instr[25]?REMU:AND;
-                endcase
+        if (if_id.valid) begin
+            case (opcode)
+                7'b0010011: begin
+                    id_ex_next.reg_write = 1'b1;
+                    id_ex_next.ALU_ctrl.operand2 = imm_i;
+                    case (funct3)
+                        3'b000: id_ex_next.ALU_ctrl.opr = ADD;
+                        3'b100: id_ex_next.ALU_ctrl.opr = XOR;
+                        3'b110: id_ex_next.ALU_ctrl.opr = OR;
+                        3'b111: id_ex_next.ALU_ctrl.opr = AND;
+                        default: id_ex_next.ALU_ctrl.opr = NOTOPR;
+                    endcase
                 end
-            7'b1100011:begin
-                case (if_id.decoder_ctrl.instr[14:12])
-                    3'b000:id_ex.ALU_ctrl.cond_index = EQUAL;
-                    3'b001:id_ex.ALU_ctrl.cond_index = NE;
-                    3'b100:id_ex.ALU_ctrl.cond_index = LESS;
-                    3'b101:id_ex.ALU_ctrl.cond_index = GREATER;
-                    3'b110:id_ex.ALU_ctrl.cond_index = LESSU;
-                    3'b111:id_ex.ALU_ctrl.cond_index = GREATERU; 
-                    default: id_ex.ALU_ctrl.cond_index = NOTCOND;
-                endcase
+
+                7'b0011011: begin
+                    id_ex_next.reg_write = 1'b1;
+                    id_ex_next.ALU_ctrl.operand2 = imm_i;
+                    id_ex_next.ALU_ctrl.word_index = WORD;
+                    case (funct3)
+                        3'b000: id_ex_next.ALU_ctrl.opr = ADD;
+                        default: id_ex_next.ALU_ctrl.opr = NOTOPR;
+                    endcase
                 end
-            default: id_ex.ALU_ctrl.opr=NOTOPR;
-        endcase
+
+                7'b0110011: begin
+                    id_ex_next.reg_write = 1'b1;
+                    case (funct3)
+                        3'b000: id_ex_next.ALU_ctrl.opr = funct7_30 ? SUB : ADD;
+                        3'b100: id_ex_next.ALU_ctrl.opr = XOR;
+                        3'b110: id_ex_next.ALU_ctrl.opr = OR;
+                        3'b111: id_ex_next.ALU_ctrl.opr = AND;
+                        default: id_ex_next.ALU_ctrl.opr = NOTOPR;
+                    endcase
+                end
+
+                7'b0111011: begin
+                    id_ex_next.reg_write = 1'b1;
+                    id_ex_next.ALU_ctrl.word_index = WORD;
+                    case (funct3)
+                        3'b000: id_ex_next.ALU_ctrl.opr = funct7_30 ? SUB : ADD;
+                        default: id_ex_next.ALU_ctrl.opr = NOTOPR;
+                    endcase
+                end
+
+                default: id_ex_next.reg_write = 1'b0;
+            endcase
+        end
     end
 
-    assign id_ex.ALU_ctrl.operand = rs1_data;
-    assign id_ex.ALU_ctrl.operand2 = (imm_ctrl==IMM)?imm:rs2_data;
+
+    assign id_ex = id_ex_next;
 
 endmodule
+
 `endif
