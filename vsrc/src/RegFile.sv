@@ -15,6 +15,9 @@ module RegFile import common::*; (
 
     i64 regFile [31:0];
 
+    /**
+     * RegFile write
+     */
     always_comb begin
         for (int i = 0; i < 32; i++) begin
             if (i == 0) begin
@@ -27,18 +30,24 @@ module RegFile import common::*; (
         end
     end
 
+    /**
+     * RegFile update
+     */
     always_ff @(posedge clk or posedge reset) begin : rst_write
         if (reset) begin
-		for (int i = 0; i < 32; i++) begin
-			regFile[i[4:0]] <= 64'b0;
-		end
-	end else begin
-		for (int i = 0; i < 32; i++) begin
-			regFile[i[4:0]] <= reg_c[i[4:0]];
-		end
-	end
+            for (int i = 0; i < 32; i++) begin
+                regFile[i[4:0]] <= 64'b0;
+            end
+        end else begin
+            for (int i = 0; i < 32; i++) begin
+                regFile[i[4:0]] <= reg_c[i[4:0]];
+            end
+        end
     end
 
+    /**
+     * RegFile read
+     */
     assign rs1_data = RegFile_read.rs1 == 0 ? 64'b0 : regFile[RegFile_read.rs1];
     assign rs2_data = RegFile_read.rs2 == 0 ? 64'b0 : regFile[RegFile_read.rs2];
     

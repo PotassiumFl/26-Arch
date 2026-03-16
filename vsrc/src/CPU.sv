@@ -29,19 +29,31 @@ module CPU import common::*;(
 	output i64          reg_c [0:31]
 );
 
+    /**
+     * pipeline register
+     */
     IF_ID_t  if_id;
     ID_EX_t  id_ex;
     EX_MEM_t ex_mem;
     MEM_WB_t mem_wb;
 
+    /**
+     * regfile i/o
+     */
     RegFile_read_t RegFile_read;
     RegFile_write_t RegFile_write;
 
     i64 rs1_data;
     i64 rs2_data;
 
+    /**
+     * Hazard ctrl
+     */
     logic stall;
 
+    /**
+     * difftest commit variable
+     */
     assign pc_c     = mem_wb.decoder_ctrl.pc;
     assign instr_c  = mem_wb.decoder_ctrl.instr;
     assign w_en_c   = mem_wb.reg_write;
@@ -49,6 +61,9 @@ module CPU import common::*;(
     assign wdata_c  = mem_wb.result;
     assign valid_c  = mem_wb.valid;
 
+    /**
+     * CPU models
+     */
     Fetch fetch(
         .clk(clk),
         .reset(reset),

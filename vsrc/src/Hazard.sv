@@ -12,6 +12,9 @@ module Hazard import common::*; (
     output logic stall
 );
 
+    /**
+     * passby now (preserved for Lab2)
+     */
     always_comb begin
         stall = 1'b0;
     end
