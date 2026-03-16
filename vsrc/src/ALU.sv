@@ -22,6 +22,9 @@ module ALU import common::*; (
     i64 operandA;
     i64 operandB;
 
+    /** 
+     * forward proceed
+     */
     Forward forward(
         .id_ex(id_ex),
         .ex_mem(ex_mem),
@@ -47,7 +50,10 @@ module ALU import common::*; (
         endcase
     end
 
-    always_comb begin : ALU_ex
+    /**
+     * opr_t ex
+     */
+    always_comb begin : opr_ex
         case(id_ex.ALU_ctrl.opr)
             ADD: result_tmp = operandA + operandB;
             SUB: result_tmp = operandA - operandB;
@@ -66,11 +72,17 @@ module ALU import common::*; (
             ex_mem_next.alu_result = result_tmp;
     end
 
+    /**
+     * pipeline store
+     */
     assign ex_mem_next.wd        = id_ex.wd;
     assign ex_mem_next.reg_write = id_ex.reg_write;
     assign ex_mem_next.decoder_ctrl = id_ex.decoder_ctrl;
     assign ex_mem_next.valid     = id_ex.valid;
 
+    /**
+     * pipeline step
+     */
     always_ff @(posedge clk or posedge reset) begin 
         if(reset)
             ex_mem <= '0;

@@ -14,12 +14,18 @@ module Mem import common::*; (
 );
     MEM_WB_t mem_wb_next;
 
+    /**
+     * pipeline store
+     */
     assign mem_wb_next.result       = ex_mem.alu_result;
     assign mem_wb_next.wd           = ex_mem.wd;
     assign mem_wb_next.reg_write    = ex_mem.reg_write;
     assign mem_wb_next.decoder_ctrl = ex_mem.decoder_ctrl;
     assign mem_wb_next.valid        = ex_mem.valid;
 
+    /**
+     * pipeline step
+     */
     always_ff @(posedge clk or posedge reset) begin
         if(reset)
             mem_wb <= '0;

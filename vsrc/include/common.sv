@@ -236,16 +236,6 @@ typedef struct packed {
     word_t data;        // the data from AXI bus
 } cbus_resp_t;
 
-/**
- * Mem Control Code
- */
-typedef struct packed {
-    logic pc_ready;
-    logic data_visit;
-    i64 pc;
-    i64 mem_visit_addr;
-} momery_ctrl_t;
-
 
 /**
  * ALU Control Code
@@ -258,31 +248,26 @@ typedef enum i3 {
     LESSU    = 3'b100,
     EQUAL    = 3'b101,
     NE       = 3'b110
-} cond_t; //condition type
+} cond_t; //condition check type
 
 typedef enum i4 {
     NOTOPR  = 4'h0,
     ADD     = 4'h1,
     SUB     = 4'h2,
-    MUL     = 4'h3,
-    SLL     = 4'h4,
-    SLT     = 4'h5,
-    SLTU    = 4'h6,
+    MUL     = 4'h3, // preserved for Lab1-extra
+    SLL     = 4'h4, // preserved for Lab3
+    SLT     = 4'h5, // preserved for Lab3
+    SLTU    = 4'h6, // preserved for Lab3
     XOR     = 4'h7,
-    DIV     = 4'h8,
-    SRL     = 4'h9,
-    SRA     = 4'hA,
-    DIVU    = 4'hB,
+    DIV     = 4'h8, // preserved for Lab1-extra
+    SRL     = 4'h9, // preserved for Lab3
+    SRA     = 4'hA, // preserved for Lab3
+    DIVU    = 4'hB, // preserved for Lab1-extra
     OR      = 4'hC,
-    REM     = 4'hD,
+    REM     = 4'hD, // preserved for Lab1-extra
     AND     = 4'hE,
-    REMU    = 4'hF
-} opr_t; //operator type
-
-typedef enum i1 {  
-    IMM = 1'b0,
-    REG = 1'b1
-} imm_t; //imm index
+    REMU    = 4'hF  // preserved for Lab1-extra
+} opr_t; //operation type
 
 typedef enum i1 {
     NORMAL = 1'b0,
@@ -290,13 +275,13 @@ typedef enum i1 {
 } word_type_t; //word index
 
 typedef struct packed {
-    cond_t      cond_index;
-    opr_t       opr;
-    word_type_t word_index;
-    i6          shamt;
+    cond_t      cond_index; // condition check (preserved for Lab3)
+    opr_t       opr;        // opration type
+    word_type_t word_index; // word index
+    i6          shamt;      // shift amount (preserved for Lab3)
     i64         operand;
     i64         operand2;
-    i64         offset;
+    i64         offset;     // load/store offset & branch offset (preserved for Lab2&3)
 } ALU_ctrl_t;
 
 /**
@@ -322,46 +307,37 @@ typedef struct packed {
 } decoder_ctrl_t;
 
 /**
- * state enum
- */
-typedef enum i2{
-    IDLE,
-    WAIT_ADDR,
-    WAIT_DATA
-} fetch_state_t;
-
-/**
  * pipeline register
  */
 typedef struct packed {
-    logic  valid;
-    decoder_ctrl_t  decoder_ctrl;
+    logic  valid;                   // for difftest commit
+    decoder_ctrl_t  decoder_ctrl;   // decoder ctrl code
 } IF_ID_t;
 
 typedef struct packed {
-    logic       valid;
-    u5          wd;
-    decoder_ctrl_t  decoder_ctrl;
-    ALU_ctrl_t  ALU_ctrl;
-    u1          reg_write;
-    u5          rs1;
-    u5          rs2;
+    logic       valid;              // for difftest commit
+    u5          wd;                 // for forward identifier and write back
+    decoder_ctrl_t  decoder_ctrl;   // for difftest commit
+    ALU_ctrl_t  ALU_ctrl;           // ALU ctrl code
+    u1          reg_write;          // for forward identifier and write back
+    u5          rs1;                // for forward identifier
+    u5          rs2;                // for forward identifier
 } ID_EX_t;
 
 typedef struct packed {
-    logic  valid;
-    u5      wd;
-    decoder_ctrl_t  decoder_ctrl;
-    i64     alu_result;
-    u1      reg_write;
+    logic  valid;                   // for difftest commit
+    u5      wd;                     // for forward identifier and write back
+    decoder_ctrl_t  decoder_ctrl;   // for difftest commit
+    i64     alu_result;             // for write back
+    u1      reg_write;              // for forward identifier and write back
 } EX_MEM_t;
 
 typedef struct packed {
-    logic  valid;
-    u5      wd;
-    decoder_ctrl_t  decoder_ctrl;
-    i64     result;
-    u1      reg_write;
+    logic  valid;                   // for difftest commit
+    u5      wd;                     // for forward identifier and write back
+    decoder_ctrl_t  decoder_ctrl;   // for difftest commit
+    i64     result;                 // for write back
+    u1      reg_write;              // for forward identifier and write back
 } MEM_WB_t;
 
 endpackage

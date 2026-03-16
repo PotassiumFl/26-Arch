@@ -16,6 +16,9 @@ module core import common::*;(
 	input  logic       trint, swint, exint
 );
 
+	/**
+	 * variables for difftest commit
+	 */
 	logic valid_c;
 	u64 pc_c;
 	u32 instr_c;

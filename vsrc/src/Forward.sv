@@ -14,6 +14,9 @@ module Forward import common::*;(
     output u2 forwardB
 );
 
+    /**
+     * forward identifier
+     */
     always_comb begin : forward
         forwardA = 2'b00;
         forwardB = 2'b00;

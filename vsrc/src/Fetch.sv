@@ -18,15 +18,24 @@ module Fetch import common::*;(
     u64 pc;
     u32 instr;
 
-    logic waiting;
+    /**
+     * Fetch state indicate
+     */
+    logic waiting; 
     logic instr_valid;
 
+    /**
+     * front pipeline
+     */
     IF_ID_t if_id_next;
 
+    /**
+     * ibus ctrl
+     */
     assign ireq.valid = waiting;
     assign ireq.addr  = pc;
 
-    always_ff @(posedge clk or posedge reset) begin
+    always_ff @(posedge clk or posedge reset) begin : fetch_main
         if(reset) begin
             pc <= PCINIT;
             waiting <= 1'b1;
@@ -48,13 +57,19 @@ module Fetch import common::*;(
         end
     end
 
+    /**
+     * store pipeline
+     */
     always_comb begin
         if_id_next.valid = instr_valid;
         if_id_next.decoder_ctrl.instr = instr;
         if_id_next.decoder_ctrl.pc    = pc;
     end
 
-    always_ff @(posedge clk or posedge reset) begin
+    /**
+     * pipeline step
+     */
+    always_ff @(posedge clk or posedge reset) begin : if_id_pipeline
         if(reset)
             if_id <= '0;
         else if(!stall)

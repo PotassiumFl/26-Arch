@@ -23,6 +23,9 @@ module Decoder import common::*; (
     logic funct7_30;
     i64 imm_i;
 
+    /**
+     * break down instr
+     */
     assign instr     = if_id.decoder_ctrl.instr;
     assign opcode    = instr[6:0];
     assign funct3    = instr[14:12];
@@ -47,6 +50,10 @@ module Decoder import common::*; (
 
         if (if_id.valid) begin
             case (opcode)
+
+                /**
+                 * I-type
+                 */
                 7'b0010011: begin
                     id_ex_next.reg_write = 1'b1;
                     id_ex_next.ALU_ctrl.operand2 = imm_i;
@@ -59,6 +66,9 @@ module Decoder import common::*; (
                     endcase
                 end
 
+                /**
+                 * I-type word
+                 */
                 7'b0011011: begin
                     id_ex_next.reg_write = 1'b1;
                     id_ex_next.ALU_ctrl.operand2 = imm_i;
@@ -69,6 +79,9 @@ module Decoder import common::*; (
                     endcase
                 end
 
+                /**
+                 * R-type
+                 */
                 7'b0110011: begin
                     id_ex_next.reg_write = 1'b1;
                     case (funct3)
@@ -80,6 +93,9 @@ module Decoder import common::*; (
                     endcase
                 end
 
+                /**
+                 * R-type word
+                 */
                 7'b0111011: begin
                     id_ex_next.reg_write = 1'b1;
                     id_ex_next.ALU_ctrl.word_index = WORD;
@@ -94,7 +110,9 @@ module Decoder import common::*; (
         end
     end
 
-
+    /**
+     * pipeline step
+     */
     assign id_ex = id_ex_next;
 
 endmodule
