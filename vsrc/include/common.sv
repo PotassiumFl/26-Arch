@@ -274,6 +274,12 @@ typedef enum i1 {
     WORD   = 1'b1
 } word_type_t; //word index
 
+typedef enum i2 {
+    MEM_NONE  = 2'd0,
+    MEM_LOAD  = 2'd1,
+    MEM_STORE = 2'd2
+} mem_op_t;
+
 typedef struct packed {
     cond_t      cond_index; // condition check (preserved for Lab3)
     opr_t       opr;        // opration type
@@ -322,14 +328,22 @@ typedef struct packed {
     u1          reg_write;          // for forward identifier and write back
     u5          rs1;                // for forward identifier
     u5          rs2;                // for forward identifier
+    i64         rs2_val;          // store / R-type operand2
+    u1          uses_rs2;
+    u1          alu_op2_is_rs2;     // 1: operandB from forwarded rs2 (R-type)
+    mem_op_t    mem_op;
+    u3          ls_funct3;
 } ID_EX_t;
 
 typedef struct packed {
     logic  valid;                   // for difftest commit
     u5      wd;                     // for forward identifier and write back
     decoder_ctrl_t  decoder_ctrl;   // for difftest commit
-    i64     alu_result;             // for write back
+    i64     alu_result;             // for write back / load addr
     u1      reg_write;              // for forward identifier and write back
+    mem_op_t mem_op;
+    u3       ls_funct3;
+    i64      store_data;
 } EX_MEM_t;
 
 typedef struct packed {
