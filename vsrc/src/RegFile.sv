@@ -48,8 +48,8 @@ module RegFile import common::*; (
     /**
      * RegFile read
      */
-    assign rs1_data = RegFile_read.rs1 == 0 ? 64'b0 : regFile[RegFile_read.rs1];
-    assign rs2_data = RegFile_read.rs2 == 0 ? 64'b0 : regFile[RegFile_read.rs2];
+    assign rs1_data = RegFile_read.rs1 == 0 ? 64'b0 : reg_c[RegFile_read.rs1];
+    assign rs2_data = RegFile_read.rs2 == 0 ? 64'b0 : reg_c[RegFile_read.rs2];
     
 endmodule
 
