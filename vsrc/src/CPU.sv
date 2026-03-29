@@ -49,17 +49,31 @@ module CPU import common::*;(
     /**
      * Hazard ctrl
      */
-    logic stall;
+    logic hazard_stall;
+    logic stall_ex;
+    logic mem_busy;
+    logic wb_fire;
+    MEM_WB_t wb_next;
 
-    /**
-     * difftest commit variable
-     */
+    logic ex_mem_mem_op;
+    logic stall_fetch;
+
+    assign ex_mem_mem_op = ex_mem.valid && ex_mem.mem_op != MEM_NONE;
+    assign stall_fetch = hazard_stall | ex_mem_mem_op;
+    assign stall_ex    = hazard_stall | (ex_mem_mem_op && !(mem_busy && dresp.data_ok));
+
     assign pc_c     = mem_wb.decoder_ctrl.pc;
     assign instr_c  = mem_wb.decoder_ctrl.instr;
     assign w_en_c   = mem_wb.reg_write;
     assign wd_c     = {3'b0,mem_wb.wd};
     assign wdata_c  = mem_wb.result;
-    assign valid_c  = mem_wb.valid;
+
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset)
+            valid_c <= 1'b0;
+        else
+            valid_c <= wb_fire;
+    end
 
     /**
      * CPU models
@@ -67,7 +81,7 @@ module CPU import common::*;(
     Fetch fetch(
         .clk(clk),
         .reset(reset),
-        .stall(stall),
+        .stall(stall_fetch),
         .iresp(iresp),
         .ireq(ireq),
         .if_id(if_id)
@@ -76,7 +90,7 @@ module CPU import common::*;(
     Decoder decoder(
         .clk(clk),
         .reset(reset),
-        .stall(stall),
+        .stall(stall_fetch),
         .if_id(if_id),
         .id_ex(id_ex),
         .RegFile_read(RegFile_read),
@@ -87,18 +101,25 @@ module CPU import common::*;(
     ALU ALU(
         .clk(clk),
         .reset(reset),
-        .stall(stall),
+        .stall(stall_ex),
         .id_ex(id_ex),
         .mem_wb(mem_wb),
+        .wb_fire(wb_fire),
+        .wb_next(wb_next),
         .ex_mem(ex_mem)
     );
 
     Mem mem(
         .clk(clk),
         .reset(reset),
-        .stall(stall),
+        .hazard_stall(hazard_stall),
         .ex_mem(ex_mem),
-        .mem_wb(mem_wb)
+        .mem_wb(mem_wb),
+        .dreq(dreq),
+        .dresp(dresp),
+        .mem_busy(mem_busy),
+        .wb_fire(wb_fire),
+        .wb_next(wb_next)
     );
 
     Wb wb(
@@ -119,7 +140,8 @@ module CPU import common::*;(
     Hazard hazard(
         .id_ex(id_ex),
         .if_id(if_id),
-        .stall(stall)
+        .ex_mem(ex_mem),
+        .stall(hazard_stall)
     );
 endmodule
 `endif
