@@ -12,27 +12,27 @@ module Forward import common::*;(
     input logic    wb_fire,
     input MEM_WB_t wb_next,
 
-    output u2 forwardA,
-    output u2 forwardB
+    output forward_t forwardA,
+    output forward_t forwardB
 );
 
     always_comb begin : forward
-        forwardA = 2'b00;
-        forwardB = 2'b00;
+        forwardA = FORWARD_NONE;
+        forwardB = FORWARD_NONE;
 
         if (ex_mem.reg_write && ex_mem.wd != 0 && ex_mem.wd == id_ex.rs1)
-            forwardA = 2'b10;
+            forwardA = FORWARD_MEM;
         else if (wb_fire && wb_next.reg_write && wb_next.wd != 0 && wb_next.wd == id_ex.rs1)
-            forwardA = 2'b11;
+            forwardA = FORWARD_WB;
         else if (mem_wb.reg_write && mem_wb.wd != 0 && mem_wb.wd == id_ex.rs1)
-            forwardA = 2'b01;
+            forwardA = FORWARD_EX;
 
         if (ex_mem.reg_write && ex_mem.wd != 0 && ex_mem.wd == id_ex.rs2)
-            forwardB = 2'b10;
+            forwardB = FORWARD_MEM;
         else if (wb_fire && wb_next.reg_write && wb_next.wd != 0 && wb_next.wd == id_ex.rs2)
-            forwardB = 2'b11;
+            forwardB = FORWARD_WB;
         else if (mem_wb.reg_write && mem_wb.wd != 0 && mem_wb.wd == id_ex.rs2)
-            forwardB = 2'b01;
+            forwardB = FORWARD_EX;
     end
 
 endmodule

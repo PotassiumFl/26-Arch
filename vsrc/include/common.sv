@@ -236,6 +236,33 @@ typedef struct packed {
     word_t data;        // the data from AXI bus
 } cbus_resp_t;
 
+/**
+ * Funct7 Code
+ */
+typedef enum i7{
+    OP        = 7'b0110011,
+    OP_IMM    = 7'b0010011,
+    OP_32     = 7'b0111011,
+    OP_IMM_32 = 7'b0011011,
+    LOAD      = 7'b0000011,
+    STORE     = 7'b0100011,
+    LUI       = 7'b0110111,
+    BRANCH    = 7'b1100011,
+    JAL       = 7'b1101111,
+    JALR      = 7'b1100111,
+    AUIPC     = 7'b0010111
+} funct7_t;
+
+/**
+ * Forward Control Code
+ */
+typedef enum i2 {
+    FORWARD_NONE = 2'b00,
+    FORWARD_EX   = 2'b01,
+    FORWARD_MEM  = 2'b10,
+    FORWARD_WB   = 2'b11
+} forward_t;
+
 
 /**
  * ALU Control Code
@@ -267,18 +294,18 @@ typedef enum i4 {
     REM     = 4'hD, // preserved for Lab1-extra
     AND     = 4'hE,
     REMU    = 4'hF  // preserved for Lab1-extra
-} opr_t; //operation type
+} opr_t; // operation type
 
 typedef enum i1 {
     NORMAL = 1'b0,
     WORD   = 1'b1
-} word_type_t; //word index
+} word_type_t; // word index
 
 typedef enum i2 {
     MEM_NONE  = 2'd0,
     MEM_LOAD  = 2'd1,
     MEM_STORE = 2'd2
-} mem_op_t;
+} mem_op_t; // memory control type
 
 typedef struct packed {
     cond_t      cond_index; // condition check (preserved for Lab3)
@@ -287,7 +314,6 @@ typedef struct packed {
     i6          shamt;      // shift amount (preserved for Lab3)
     i64         operand;
     i64         operand2;
-    i64         offset;     // load/store offset & branch offset (preserved for Lab2&3)
 } ALU_ctrl_t;
 
 /**
@@ -316,42 +342,42 @@ typedef struct packed {
  * pipeline register
  */
 typedef struct packed {
-    logic  valid;                   // for difftest commit
+    logic           valid;          // for difftest commit
     decoder_ctrl_t  decoder_ctrl;   // decoder ctrl code
 } IF_ID_t;
 
 typedef struct packed {
-    logic       valid;              // for difftest commit
-    u5          wd;                 // for forward identifier and write back
+    logic           valid;          // for difftest commit
+    u5              wd;             // for forward identifier and write back
     decoder_ctrl_t  decoder_ctrl;   // for difftest commit
-    ALU_ctrl_t  ALU_ctrl;           // ALU ctrl code
-    u1          reg_write;          // for forward identifier and write back
-    u5          rs1;                // for forward identifier
-    u5          rs2;                // for forward identifier
-    i64         rs2_val;          // store / R-type operand2
-    u1          uses_rs2;
-    u1          alu_op2_is_rs2;     // 1: operandB from forwarded rs2 (R-type)
-    mem_op_t    mem_op;
-    u3          ls_funct3;
+    ALU_ctrl_t      ALU_ctrl;       // ALU ctrl code
+    u1              reg_write;      // for forward identifier and write back
+    u5              rs1;            // for forward identifier
+    u5              rs2;            // for forward identifier
+    i64             rs2_val;        // store / R-type operand2
+    u1              uses_rs2;
+    u1              alu_op2_is_rs2; // 1: operandB from forwarded rs2 (R-type)
+    mem_op_t        mem_op;
+    u3              ls_funct3;
 } ID_EX_t;
 
 typedef struct packed {
-    logic  valid;                   // for difftest commit
-    u5      wd;                     // for forward identifier and write back
+    logic           valid;          // for difftest commit
+    u5              wd;             // for forward identifier and write back
     decoder_ctrl_t  decoder_ctrl;   // for difftest commit
-    i64     alu_result;             // for write back / load addr
-    u1      reg_write;              // for forward identifier and write back
-    mem_op_t mem_op;
-    u3       ls_funct3;
-    i64      store_data;
+    i64             alu_result;     // for write back / load addr
+    u1              reg_write;      // for forward identifier and write back
+    mem_op_t        mem_op;
+    u3              ls_funct3;
+    i64             store_data;
 } EX_MEM_t;
 
 typedef struct packed {
-    logic  valid;                   // for difftest commit
-    u5      wd;                     // for forward identifier and write back
+    logic           valid;          // for difftest commit
+    u5              wd;             // for forward identifier and write back
     decoder_ctrl_t  decoder_ctrl;   // for difftest commit
-    i64     result;                 // for write back
-    u1      reg_write;              // for forward identifier and write back
+    i64             result;         // for write back
+    u1              reg_write;      // for forward identifier and write back
 } MEM_WB_t;
 
 endpackage

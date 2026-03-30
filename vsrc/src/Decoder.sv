@@ -18,7 +18,7 @@ module Decoder import common::*; (
     ID_EX_t id_ex_next;
 
     u32 instr;
-    u7  opcode;
+    funct7_t  opcode;
     u3  funct3;
     logic funct7_30;
     i64 imm_i;
@@ -26,15 +26,15 @@ module Decoder import common::*; (
     i64 imm_u;
 
     assign instr     = if_id.decoder_ctrl.instr;
-    assign opcode    = instr[6:0];
+    assign opcode    = funct7_t'(instr[6:0]);
     assign funct3    = instr[14:12];
     assign funct7_30 = instr[30];
     assign imm_i     = {{52{instr[31]}}, instr[31:20]};
     assign imm_s     = {{52{instr[31]}}, instr[31:25], instr[11:7]};
     assign imm_u     = {{32{instr[31]}}, instr[31:12], 12'b0};
 
-    assign RegFile_read.rs1 = (opcode == 7'b0110111) ? 5'b0 : instr[19:15];
-    assign RegFile_read.rs2 = (opcode == 7'b0110111 || opcode == 7'b0000011) ? 5'b0 : instr[24:20];
+    assign RegFile_read.rs1 = (opcode == LUI) ? 5'b0 : instr[19:15];
+    assign RegFile_read.rs2 = (opcode == LUI || opcode == LOAD) ? 5'b0 : instr[24:20];
 
     always_comb begin : main_decoder_logic
         id_ex_next = '0;
@@ -57,21 +57,21 @@ module Decoder import common::*; (
         if (if_id.valid) begin
             case (opcode)
 
-                7'b0110111: begin
+                LUI: begin
                     id_ex_next.reg_write = 1'b1;
                     id_ex_next.ALU_ctrl.operand  = 64'b0;
                     id_ex_next.ALU_ctrl.operand2 = imm_u;
                     id_ex_next.ALU_ctrl.opr = ADD;
                 end
 
-                7'b0000011: begin
+                LOAD: begin
                     id_ex_next.reg_write = 1'b1;
                     id_ex_next.mem_op = MEM_LOAD;
                     id_ex_next.ALU_ctrl.operand2 = imm_i;
                     id_ex_next.ALU_ctrl.opr = ADD;
                 end
 
-                7'b0100011: begin
+                STORE: begin
                     id_ex_next.reg_write = 1'b0;
                     id_ex_next.mem_op = MEM_STORE;
                     id_ex_next.uses_rs2 = 1'b1;
@@ -79,7 +79,7 @@ module Decoder import common::*; (
                     id_ex_next.ALU_ctrl.opr = ADD;
                 end
 
-                7'b0010011: begin
+                OP_IMM: begin
                     id_ex_next.reg_write = 1'b1;
                     id_ex_next.ALU_ctrl.operand2 = imm_i;
                     case (funct3)
@@ -91,7 +91,7 @@ module Decoder import common::*; (
                     endcase
                 end
 
-                7'b0011011: begin
+                OP_IMM_32: begin
                     id_ex_next.reg_write = 1'b1;
                     id_ex_next.ALU_ctrl.operand2 = imm_i;
                     id_ex_next.ALU_ctrl.word_index = WORD;
@@ -101,7 +101,7 @@ module Decoder import common::*; (
                     endcase
                 end
 
-                7'b0110011: begin
+                OP: begin
                     id_ex_next.reg_write = 1'b1;
                     id_ex_next.alu_op2_is_rs2 = 1'b1;
                     id_ex_next.uses_rs2 = 1'b1;
@@ -114,7 +114,7 @@ module Decoder import common::*; (
                     endcase
                 end
 
-                7'b0111011: begin
+                OP_32: begin
                     id_ex_next.reg_write = 1'b1;
                     id_ex_next.alu_op2_is_rs2 = 1'b1;
                     id_ex_next.uses_rs2 = 1'b1;
