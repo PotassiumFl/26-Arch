@@ -40,7 +40,7 @@ module CPU import common::*;(
     /**
      * regfile i/o
      */
-    RegFile_read_t RegFile_read;
+    RegFile_read_t  RegFile_read;
     RegFile_write_t RegFile_write;
 
     i64 rs1_data;
@@ -49,18 +49,18 @@ module CPU import common::*;(
     /**
      * Hazard ctrl
      */
-    logic hazard_stall;
-    logic stall_ex;
-    logic mem_busy;
-    logic wb_fire;
+    logic    hazard_stall;
+    logic    stall_ex;
+    logic    mem_busy;
+    logic    wb_fire;
     MEM_WB_t wb_next;
 
     logic ex_mem_mem_op;
     logic stall_fetch;
 
     assign ex_mem_mem_op = ex_mem.valid && ex_mem.mem_op != MEM_NONE;
-    assign stall_fetch = hazard_stall | ex_mem_mem_op;
-    assign stall_ex    = hazard_stall | (ex_mem_mem_op && !(mem_busy && dresp.data_ok));
+    assign stall_fetch   = hazard_stall | ex_mem_mem_op;
+    assign stall_ex      = hazard_stall | (ex_mem_mem_op && !(mem_busy && dresp.data_ok));
 
     assign pc_c     = mem_wb.decoder_ctrl.pc;
     assign instr_c  = mem_wb.decoder_ctrl.instr;
@@ -139,7 +139,6 @@ module CPU import common::*;(
 
     Hazard hazard(
         .id_ex(id_ex),
-        .if_id(if_id),
         .ex_mem(ex_mem),
         .stall(hazard_stall)
     );

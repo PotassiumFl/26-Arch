@@ -11,11 +11,11 @@ module Wb import common::*; (
 );
 
     /**
-     * RegFile ctrl
-     */
-    assign RegFile_write.wd = mem_wb.wd;
+    * RegFile ctrl
+    */
+    assign RegFile_write.wd     = mem_wb.wd;
     assign RegFile_write.w_data = mem_wb.result;
-    assign RegFile_write.w_en = mem_wb.reg_write;
+    assign RegFile_write.w_en   = mem_wb.reg_write;
     
 endmodule
 

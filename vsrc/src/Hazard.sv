@@ -7,12 +7,9 @@
 
 module Hazard import common::*; (
     input ID_EX_t id_ex,
-    input IF_ID_t if_id,
     input EX_MEM_t ex_mem,
     output logic stall
 );
-
-    `UNUSED_OK({if_id});
 
     always_comb begin
         stall = 1'b0;
