@@ -61,7 +61,7 @@ module Fetch import common::*;(
      * store pipeline
      */
     always_comb begin
-        if_id_next.valid = instr_valid;
+        if_id_next.valid              = instr_valid;
         if_id_next.decoder_ctrl.instr = instr;
         if_id_next.decoder_ctrl.pc    = pc;
     end

@@ -16,7 +16,7 @@ module ALU import common::*; (
 );
 
     EX_MEM_t ex_mem_next;
-    i64 result_tmp;
+    i64      result_tmp;
 
     forward_t forwardA;
     forward_t forwardB;
@@ -37,21 +37,21 @@ module ALU import common::*; (
 
     always_comb begin : forward1
         case(forwardA)
-            FORWARD_NONE:   operandA = id_ex.ALU_ctrl.operand;
-            FORWARD_MEM:   operandA = ex_mem.alu_result;
+            FORWARD_NONE: operandA = id_ex.ALU_ctrl.operand;
+            FORWARD_MEM:  operandA = ex_mem.alu_result;
             FORWARD_WB:   operandA = wb_next.result;
             FORWARD_EX:   operandA = mem_wb.result;
-            default: operandA = id_ex.ALU_ctrl.operand;
+            default:      operandA = id_ex.ALU_ctrl.operand;
         endcase
     end
 
     always_comb begin : forward_rs2_path
         case(forwardB)
-            FORWARD_NONE:   forwarded_rs2 = id_ex.rs2_val;
-            FORWARD_MEM:   forwarded_rs2 = ex_mem.alu_result;
+            FORWARD_NONE: forwarded_rs2 = id_ex.rs2_val;
+            FORWARD_MEM:  forwarded_rs2 = ex_mem.alu_result;
             FORWARD_WB:   forwarded_rs2 = wb_next.result;
             FORWARD_EX:   forwarded_rs2 = mem_wb.result;
-            default: forwarded_rs2 = id_ex.rs2_val;
+            default:      forwarded_rs2 = id_ex.rs2_val;
         endcase
     end
 
@@ -64,19 +64,18 @@ module ALU import common::*; (
 
     always_comb begin : opr_ex
         case(id_ex.ALU_ctrl.opr)
-            ADD: result_tmp = operandA + operandB;
-            SUB: result_tmp = operandA - operandB;
-            XOR: result_tmp = operandA ^ operandB;
-            OR : result_tmp = operandA | operandB;
-            AND: result_tmp = operandA & operandB;
+            ADD:     result_tmp = operandA + operandB;
+            SUB:     result_tmp = operandA - operandB;
+            XOR:     result_tmp = operandA ^ operandB;
+            OR :     result_tmp = operandA | operandB;
+            AND:     result_tmp = operandA & operandB;
             default: result_tmp = 64'b0;
         endcase
     end
 
     always_comb begin : word_ex
         if(id_ex.ALU_ctrl.word_index == WORD)
-            ex_mem_next.alu_result =
-                {{32{result_tmp[31]}},result_tmp[31:0]};
+            ex_mem_next.alu_result = {{32{result_tmp[31]}},result_tmp[31:0]};
         else
             ex_mem_next.alu_result = result_tmp;
     end

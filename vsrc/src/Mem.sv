@@ -6,13 +6,13 @@
 `endif
 
 module Mem import common::*; (
-    input logic clk,
-    input logic reset,
-    input logic hazard_stall,
-    input EX_MEM_t ex_mem,
+    input  logic clk,
+    input  logic reset,
+    input  logic hazard_stall,
+    input  EX_MEM_t ex_mem,
     output MEM_WB_t mem_wb,
     output dbus_req_t dreq,
-    input dbus_resp_t dresp,
+    input  dbus_resp_t dresp,
     output logic mem_busy,
     output logic wb_fire,
     output MEM_WB_t wb_next
@@ -36,7 +36,7 @@ module Mem import common::*; (
     assign off   = daddr[2:0];
 
     always_comb begin
-        dreq = '0;
+        dreq       = '0;
         dreq.valid = mem_busy;
         dreq.addr  = daddr;
         if (mem_busy) begin
@@ -44,9 +44,9 @@ module Mem import common::*; (
                 MEM_LOAD: begin
                     dreq.strobe = 8'b0;
                     unique case (ex_mem.ls_funct3)
-                        3'b000, 3'b100: dreq.size = MSIZE1;
-                        3'b001, 3'b101: dreq.size = MSIZE2;
-                        3'b010, 3'b110: dreq.size = MSIZE4;
+                        3'b000, 3'b100:   dreq.size = MSIZE1;
+                        3'b001, 3'b101:   dreq.size = MSIZE2;
+                        3'b010, 3'b110:   dreq.size = MSIZE4;
                         3'b011:           dreq.size = MSIZE8;
                         default:          dreq.size = MSIZE8;
                     endcase
@@ -54,29 +54,29 @@ module Mem import common::*; (
                 MEM_STORE: begin
                     unique case (ex_mem.ls_funct3)
                         3'b000: begin
-                            dreq.size = MSIZE1;
+                            dreq.size   = MSIZE1;
                             dreq.strobe = strobe_t'(8'b1 << off);
-                            dreq.data = i64'(ex_mem.store_data[7:0]) << (8 * off);
+                            dreq.data   = i64'(ex_mem.store_data[7:0]) << (8 * off);
                         end
                         3'b001: begin
-                            dreq.size = MSIZE2;
+                            dreq.size   = MSIZE2;
                             dreq.strobe = strobe_t'(8'b11 << off);
-                            dreq.data = i64'(ex_mem.store_data[15:0]) << (8 * off);
+                            dreq.data   = i64'(ex_mem.store_data[15:0]) << (8 * off);
                         end
                         3'b010: begin
-                            dreq.size = MSIZE4;
+                            dreq.size   = MSIZE4;
                             dreq.strobe = strobe_t'(8'h0F << off);
-                            dreq.data = i64'(ex_mem.store_data[31:0]) << (8 * off);
+                            dreq.data   = i64'(ex_mem.store_data[31:0]) << (8 * off);
                         end
                         3'b011: begin
-                            dreq.size = MSIZE8;
+                            dreq.size   = MSIZE8;
                             dreq.strobe = 8'hFF;
-                            dreq.data = ex_mem.store_data;
+                            dreq.data   = ex_mem.store_data;
                         end
                         default: begin
-                            dreq.size = MSIZE8;
+                            dreq.size   = MSIZE8;
                             dreq.strobe = 8'hFF;
-                            dreq.data = ex_mem.store_data;
+                            dreq.data   = ex_mem.store_data;
                         end
                     endcase
                 end

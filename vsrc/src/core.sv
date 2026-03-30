@@ -19,13 +19,13 @@ module core import common::*;(
 	/**
 	 * variables for difftest commit
 	 */
-	logic valid_c;
-	u64 pc_c;
-	u32 instr_c;
-	logic w_en_c;
-	u8 wd_c;
-	i64 wdata_c;
-	i64 reg_c [0:31];
+	logic 	valid_c;
+	u64 	pc_c;
+	u32 	instr_c;
+	logic 	w_en_c;
+	u8 		wd_c;
+	i64 	wdata_c;
+	i64 	reg_c [0:31];
 	
 	CPU cpu(
 		.clk(clk),
