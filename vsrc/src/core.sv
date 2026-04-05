@@ -3,9 +3,10 @@
 
 `ifdef VERILATOR
 `include "include/common.sv"
+`include "src/CPU.sv"
 `endif
 
-`include "src/CPU.sv"
+
 
 module core import common::*;(
 	input  logic       clk, reset,
@@ -26,6 +27,8 @@ module core import common::*;(
 	u8 		wd_c;
 	i64 	wdata_c;
 	i64 	reg_c [0:31];
+	mem_op_t mem_op_c;
+	u64 	mem_addr_c;
 	
 	CPU cpu(
 		.clk(clk),
@@ -40,7 +43,9 @@ module core import common::*;(
 		.w_en_c(w_en_c),
 		.wd_c(wd_c),
 		.wdata_c(wdata_c),
-		.reg_c(reg_c)
+		.reg_c(reg_c),	
+		.mem_addr_c(mem_addr_c),
+		.mem_op_c(mem_op_c)
 	);
 
 `ifdef VERILATOR
@@ -51,7 +56,7 @@ module core import common::*;(
 		.valid              (valid_c),
 		.pc                 (pc_c),
 		.instr              (instr_c),
-		.skip               (0),
+		.skip               ((mem_op_c == MEM_STORE || mem_op_c == MEM_LOAD) && mem_addr_c[31] == 0),
 		.isRVC              (0),
 		.scFailed           (0),
 		.wen                (w_en_c),
