@@ -127,6 +127,8 @@ module Mem import common::*; (
         mem_wb_next.wd           = ex_mem.wd;
         mem_wb_next.reg_write    = ex_mem.reg_write;
         mem_wb_next.decoder_ctrl = ex_mem.decoder_ctrl;
+        mem_wb_next.mem_addr     = ex_mem.alu_result;
+        mem_wb_next.mem_op       = ex_mem.mem_op;
         if (ex_mem.mem_op == MEM_LOAD)
             mem_wb_next.result = load_extend(dresp.data, ex_mem.alu_result, ex_mem.ls_funct3);
         else
