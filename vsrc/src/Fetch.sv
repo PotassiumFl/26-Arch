@@ -9,6 +9,9 @@ module Fetch import common::*;(
     input  logic       clk, reset,
     input  logic       stall,
 
+    input  logic       redirect_valid,
+    input  addr_t      redirect_pc,
+
     input  ibus_resp_t iresp,
     output ibus_req_t  ireq,
 
@@ -42,7 +45,12 @@ module Fetch import common::*;(
             instr_valid <= 1'b0;
         end
         else begin
-            if(waiting) begin
+            if(redirect_valid) begin
+                pc <= redirect_pc;
+                waiting <= 1'b1;
+                instr_valid <= 1'b0;
+            end
+            else if(waiting) begin
                 if(iresp.data_ok) begin
                     instr <= iresp.data;
                     instr_valid <= 1'b1;
@@ -71,6 +79,8 @@ module Fetch import common::*;(
      */
     always_ff @(posedge clk or posedge reset) begin : if_id_pipeline
         if(reset)
+            if_id <= '0;
+        else if(redirect_valid)
             if_id <= '0;
         else if(!stall)
             if_id <= if_id_next;

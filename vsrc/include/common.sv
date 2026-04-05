@@ -307,11 +307,18 @@ typedef enum i2 {
     MEM_STORE = 2'd2
 } mem_op_t; // memory control type
 
+typedef enum i2 {
+    CFLOW_ALU  = 2'd0, // normal ALU / AUIPC / LUI / loads
+    CFLOW_BR   = 2'd1,
+    CFLOW_JAL  = 2'd2,
+    CFLOW_JALR = 2'd3
+} cflow_t;
+
 typedef struct packed {
-    cond_t      cond_index; // condition check (preserved for Lab3)
+    cond_t      cond_index; // branch condition or NOTCOND
     opr_t       opr;        // opration type
     word_type_t word_index; // word index
-    i6          shamt;      // shift amount (preserved for Lab3)
+    i6          shamt;      // shift amount (I-type / fixed)
     i64         operand;
     i64         operand2;
 } ALU_ctrl_t;
@@ -359,6 +366,8 @@ typedef struct packed {
     u1              alu_op2_is_rs2; // 1: operandB from forwarded rs2 (R-type)
     mem_op_t        mem_op;
     u3              ls_funct3;
+    cflow_t         cflow;          // control flow class
+    i64             imm_pc;         // B/J offset or JALR I-immediate
 } ID_EX_t;
 
 typedef struct packed {
@@ -378,6 +387,8 @@ typedef struct packed {
     decoder_ctrl_t  decoder_ctrl;   // for difftest commit
     i64             result;         // for write back
     u1              reg_write;      // for forward identifier and write back
+    u64             mem_addr;
+    mem_op_t        mem_op;
 } MEM_WB_t;
 
 endpackage

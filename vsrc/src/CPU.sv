@@ -3,8 +3,6 @@
 
 `ifdef VERILATOR
 `include "include/common.sv"
-`endif
-
 `include "src/Fetch.sv"
 `include "src/ALU.sv"
 `include "src/Decoder.sv"
@@ -13,6 +11,9 @@
 `include "src/Mem.sv"
 `include "src/RegFile.sv"
 `include "src/Wb.sv"
+`endif
+
+
 
 module CPU import common::*;(
     input  logic        clk,reset,
@@ -26,7 +27,9 @@ module CPU import common::*;(
 	output logic        w_en_c,
 	output u8           wd_c,
 	output i64          wdata_c,
-	output i64          reg_c [0:31]
+	output i64          reg_c [0:31],
+	output u64          mem_addr_c,
+	output mem_op_t     mem_op_c
 );
 
     /**
@@ -58,15 +61,22 @@ module CPU import common::*;(
     logic ex_mem_mem_op;
     logic stall_fetch;
 
+    logic    redirect_valid_alu;
+    addr_t   redirect_pc;
+    logic    redirect_valid;
+
     assign ex_mem_mem_op = ex_mem.valid && ex_mem.mem_op != MEM_NONE;
     assign stall_fetch   = hazard_stall | ex_mem_mem_op;
     assign stall_ex      = hazard_stall | (ex_mem_mem_op && !(mem_busy && dresp.data_ok));
+    assign redirect_valid = redirect_valid_alu & ~stall_ex;
 
     assign pc_c     = mem_wb.decoder_ctrl.pc;
     assign instr_c  = mem_wb.decoder_ctrl.instr;
     assign w_en_c   = mem_wb.reg_write;
     assign wd_c     = {3'b0,mem_wb.wd};
     assign wdata_c  = mem_wb.result;
+    assign mem_addr_c = mem_wb.mem_addr;
+    assign mem_op_c = mem_wb.mem_op;
 
     always_ff @(posedge clk or posedge reset) begin
         if (reset)
@@ -82,6 +92,8 @@ module CPU import common::*;(
         .clk(clk),
         .reset(reset),
         .stall(stall_fetch),
+        .redirect_valid(redirect_valid),
+        .redirect_pc(redirect_pc),
         .iresp(iresp),
         .ireq(ireq),
         .if_id(if_id)
@@ -106,7 +118,9 @@ module CPU import common::*;(
         .mem_wb(mem_wb),
         .wb_fire(wb_fire),
         .wb_next(wb_next),
-        .ex_mem(ex_mem)
+        .ex_mem(ex_mem),
+        .redirect_valid(redirect_valid_alu),
+        .redirect_pc(redirect_pc)
     );
 
     Mem mem(
