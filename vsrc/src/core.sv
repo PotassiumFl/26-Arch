@@ -3,6 +3,7 @@
 
 `ifdef VERILATOR
 `include "include/common.sv"
+`include "include/csr.sv"
 `include "src/CPU.sv"
 `endif
 
@@ -29,7 +30,25 @@ module core import common::*;(
 	i64 	reg_c [0:31];
 	mem_op_t mem_op_c;
 	u64 	mem_addr_c;
-	
+	u64 	mhartid_c;
+	u64 	mcycle_c;
+	u64 	mstatus_c;
+	u64 	mepc_c;
+	u64 	mtvec_c;
+	u64 	mcause_c;
+	u64 	mtval_c;
+	u64 	mip_c;
+	u64 	mie_c;
+	u64 	mscratch_c;
+	u64 	satp_c;
+	u64 	mideleg_c;
+	u64 	medeleg_c;
+	u64 	sepc_c;
+	u64 	stval_c;
+	u64 	stvec_c;
+	u64 	scause_c;
+	u64 	sscratch_c;
+
 	CPU cpu(
 		.clk(clk),
 		.reset(reset),
@@ -45,13 +64,31 @@ module core import common::*;(
 		.wdata_c(wdata_c),
 		.reg_c(reg_c),	
 		.mem_addr_c(mem_addr_c),
-		.mem_op_c(mem_op_c)
+		.mem_op_c(mem_op_c),
+		.mhartid_c(mhartid_c),
+		.mcycle_c(mcycle_c),
+		.mstatus_c(mstatus_c),
+		.mepc_c(mepc_c),
+		.mtvec_c(mtvec_c),
+		.mcause_c(mcause_c),
+		.mtval_c(mtval_c),
+		.mip_c(mip_c),
+		.mie_c(mie_c),
+		.mscratch_c(mscratch_c),
+		.satp_c(satp_c),
+		.mideleg_c(mideleg_c),
+		.medeleg_c(medeleg_c),
+		.sepc_c(sepc_c),
+		.stval_c(stval_c),
+		.stvec_c(stvec_c),
+		.scause_c(scause_c),
+		.sscratch_c(sscratch_c)
 	);
 
 `ifdef VERILATOR
 	DifftestInstrCommit DifftestInstrCommit(
 		.clock              (clk),
-		.coreid             (0),
+		.coreid             (mhartid_c[7:0]),
 		.index              (0),
 		.valid              (valid_c),
 		.pc                 (pc_c),
@@ -66,7 +103,7 @@ module core import common::*;(
 
 	DifftestArchIntRegState DifftestArchIntRegState (
 		.clock              (clk),
-		.coreid             (0),
+		.coreid             (mhartid_c[7:0]),
 		.gpr_0              (reg_c[0]),
 		.gpr_1              (reg_c[1]),
 		.gpr_2              (reg_c[2]),
@@ -103,35 +140,35 @@ module core import common::*;(
 
     DifftestTrapEvent DifftestTrapEvent(
 		.clock              (clk),
-		.coreid             (0),
-		.valid              (0),
-		.code               (0),
-		.pc                 (0),
-		.cycleCnt           (0),
-		.instrCnt           (0)
+		.coreid             (mhartid_c[7:0]),
+		.valid              ('0),
+		.code               ('0),
+		.pc                 ('0),
+		.cycleCnt           ('0),
+		.instrCnt           ('0)
 	);
 
 	DifftestCSRState DifftestCSRState(
 		.clock              (clk),
-		.coreid             (0),
+		.coreid             (mhartid_c[7:0]),
 		.priviledgeMode     (3),
-		.mstatus            (0),
-		.sstatus            (0 /* mstatus & SSTATUS_MASK */),
-		.mepc               (0),
-		.sepc               (0),
-		.mtval              (0),
-		.stval              (0),
-		.mtvec              (0),
-		.stvec              (0),
-		.mcause             (0),
-		.scause             (0),
-		.satp               (0),
-		.mip                (0),
-		.mie                (0),
-		.mscratch           (0),
-		.sscratch           (0),
-		.mideleg            (0),
-		.medeleg            (0)
+		.mstatus            (mstatus_c),
+		.sstatus            (mstatus_c & 64'h800000030001e000),
+		.mepc               (mepc_c),
+		.sepc               (sepc_c),
+		.mtval              (mtval_c),
+		.stval              (stval_c),
+		.mtvec              (mtvec_c),
+		.stvec              (stvec_c),
+		.mcause             (mcause_c),
+		.scause             (scause_c),
+		.satp               (satp_c),
+		.mip                (mip_c),
+		.mie                (mie_c),
+		.mscratch           (mscratch_c),
+		.sscratch           (sscratch_c),
+		.mideleg            (mideleg_c),
+		.medeleg            (medeleg_c)
 	);
 `endif
 endmodule

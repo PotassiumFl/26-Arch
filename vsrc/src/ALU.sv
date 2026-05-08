@@ -66,7 +66,14 @@ module ALU import common::*; (
             operandB = id_ex.ALU_ctrl.operand2;
     end
 
+    i64 csr_opnd_pick;
+
+    assign csr_opnd_pick = id_ex.is_csr ?
+        (id_ex.csr_imm ? {59'b0, id_ex.csr_zimm} : operandA) :
+        64'b0;
+
     logic [5:0] shamt_v;
+    
     always_comb begin
         if (id_ex.alu_op2_is_rs2)
             shamt_v = operandB[5:0];
@@ -167,7 +174,11 @@ module ALU import common::*; (
     assign ex_mem_next.valid         = id_ex.valid;
     assign ex_mem_next.mem_op        = id_ex.mem_op;
     assign ex_mem_next.ls_funct3     = id_ex.ls_funct3;
-    assign ex_mem_next.store_data    = forwarded_rs2;
+    assign ex_mem_next.store_data = forwarded_rs2;
+    assign ex_mem_next.is_csr    = id_ex.is_csr;
+    assign ex_mem_next.csr_addr  = id_ex.csr_addr;
+    assign ex_mem_next.csr_funct3 = id_ex.csr_funct3;
+    assign ex_mem_next.csr_rsdata = csr_opnd_pick;
 
     always_ff @(posedge clk or posedge reset) begin
         if (reset)

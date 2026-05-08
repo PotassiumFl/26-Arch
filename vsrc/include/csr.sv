@@ -38,6 +38,10 @@ package csr_pkg;
   parameter u64 MTVEC_MASK = ~(64'h2);
   parameter u64 MEDELEG_MASK = 64'h0;
   parameter u64 MIDELEG_MASK = 64'h0;
+  // Lab bonus: sie/sip use the same writable bit positions as mip in this core.
+  parameter u64 SIE_MASK  = MIP_MASK;
+  parameter u64 SIP_MASK  = MIP_MASK;
+  parameter u64 STVEC_MASK = MTVEC_MASK;
 
   typedef struct packed {
     u1 sd;

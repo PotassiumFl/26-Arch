@@ -10,6 +10,7 @@ module Mem import common::*; (
     input  logic reset,
     input  logic hazard_stall,
     input  EX_MEM_t ex_mem,
+    input  u64 csr_read_rdata,
     output MEM_WB_t mem_wb,
     output dbus_req_t dreq,
     input  dbus_resp_t dresp,
@@ -129,8 +130,14 @@ module Mem import common::*; (
         mem_wb_next.decoder_ctrl = ex_mem.decoder_ctrl;
         mem_wb_next.mem_addr     = ex_mem.alu_result;
         mem_wb_next.mem_op       = ex_mem.mem_op;
+        mem_wb_next.is_csr       = ex_mem.is_csr;
+        mem_wb_next.csr_addr     = ex_mem.csr_addr;
+        mem_wb_next.csr_funct3   = ex_mem.csr_funct3;
+        mem_wb_next.csr_rsdata   = ex_mem.csr_rsdata;
         if (ex_mem.mem_op == MEM_LOAD)
             mem_wb_next.result = load_extend(dresp.data, ex_mem.alu_result, ex_mem.ls_funct3);
+        else if (ex_mem.is_csr)
+            mem_wb_next.result = csr_read_rdata;
         else
             mem_wb_next.result = ex_mem.alu_result;
     end

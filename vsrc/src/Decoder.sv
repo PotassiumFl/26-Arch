@@ -39,9 +39,18 @@ module Decoder import common::*; (
     assign imm_b      = {{52{instr[31]}}, instr[7], instr[30:25], instr[11:8], 1'b0};
     assign imm_j      = {{44{instr[31]}}, instr[19:12], instr[20], instr[30:21], 1'b0};
 
-    assign RegFile_read.rs1 = (opcode == LUI || opcode == AUIPC) ? 5'b0 : instr[19:15];
-    assign RegFile_read.rs2 = (opcode == LUI || opcode == AUIPC || opcode == LOAD
-                               || opcode == JAL || opcode == JALR) ? 5'b0 : instr[24:20];
+    logic csr_sys_imm;
+
+    assign csr_sys_imm =
+        opcode == SYSTEM && (
+            funct3 == 3'b101 || funct3 == 3'b110 || funct3 == 3'b111
+        );
+
+    assign RegFile_read.rs1 = (opcode == LUI || opcode == AUIPC) ? 5'b0
+        : (csr_sys_imm ? 5'b0 : instr[19:15]);
+    assign RegFile_read.rs2 =
+        (opcode == LUI || opcode == AUIPC || opcode == LOAD || opcode == JAL
+            || opcode == JALR || opcode == SYSTEM) ? 5'b0 : instr[24:20];
 
     always_comb begin : main_decoder_logic
         id_ex_next = '0;
@@ -229,6 +238,41 @@ module Decoder import common::*; (
                         3'b101: id_ex_next.ALU_ctrl.opr =
                             (funct7_full == 7'b0100000) ? SRA : SRL;
                         default: id_ex_next.ALU_ctrl.opr = NOTOPR;
+                    endcase
+                end
+
+                SYSTEM: begin
+                    unique case (funct3)
+                        3'b001, /* CSRRW */
+                        3'b010, /* CSRRS */
+                        3'b011, /* CSRRC */
+                        3'b101, /* CSRRWI */
+                        3'b110, /* CSRRSI */
+                        3'b111: begin /* CSRRCI */
+                            id_ex_next.is_csr        = 1'b1;
+                            id_ex_next.csr_addr      = csr_addr_t'(instr[31:20]);
+                            id_ex_next.csr_funct3    = funct3;
+                            id_ex_next.csr_zimm      = instr[19:15];
+                            id_ex_next.csr_imm       = (
+                                funct3 == 3'b101 ||
+                                funct3 == 3'b110 ||
+                                funct3 == 3'b111
+                            );
+                            id_ex_next.mem_op        = MEM_NONE;
+                            id_ex_next.ALU_ctrl.opr  = NOTOPR;
+                            id_ex_next.reg_write     = (instr[11:7] != 5'b0);
+                            id_ex_next.rs2           = 5'b0;
+                            id_ex_next.rs1           =
+                                (
+                                    funct3 == 3'b101 ||
+                                    funct3 == 3'b110 ||
+                                    funct3 == 3'b111
+                                ) ?
+                                    5'b0 :
+                                    instr[19:15];
+                        end
+                        default: begin
+                        end
                     endcase
                 end
 

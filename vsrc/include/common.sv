@@ -250,7 +250,8 @@ typedef enum i7{
     BRANCH    = 7'b1100011,
     JAL       = 7'b1101111,
     JALR      = 7'b1100111,
-    AUIPC     = 7'b0010111
+    AUIPC     = 7'b0010111,
+    SYSTEM    = 7'b1110011
 } funct7_t;
 
 /**
@@ -368,6 +369,11 @@ typedef struct packed {
     u3              ls_funct3;
     cflow_t         cflow;          // control flow class
     i64             imm_pc;         // B/J offset or JALR I-immediate
+    u1              is_csr;
+    csr_addr_t      csr_addr;
+    u3              csr_funct3;
+    u1              csr_imm;
+    u5              csr_zimm;
 } ID_EX_t;
 
 typedef struct packed {
@@ -379,6 +385,10 @@ typedef struct packed {
     mem_op_t        mem_op;
     u3              ls_funct3;
     i64             store_data;
+    u1              is_csr;
+    csr_addr_t      csr_addr;
+    u3              csr_funct3;
+    i64             csr_rsdata;
 } EX_MEM_t;
 
 typedef struct packed {
@@ -389,6 +399,10 @@ typedef struct packed {
     u1              reg_write;      // for forward identifier and write back
     u64             mem_addr;
     mem_op_t        mem_op;
+    u1              is_csr;
+    csr_addr_t      csr_addr;
+    u3              csr_funct3;
+    i64             csr_rsdata;
 } MEM_WB_t;
 
 endpackage
