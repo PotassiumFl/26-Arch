@@ -24,6 +24,7 @@ module MMU
         S_WALK_REQ,
         S_WALK_WAIT,
         S_ACCESS,
+        S_ACCESS_WAIT,
         S_FAULT
     } state_t;
 
@@ -46,7 +47,7 @@ module MMU
     logic align_ok;
     u64 translated_addr;
 
-    assign translate_en = (vreq.priv != PRIV_M) && (satp[63:60] == 4'd8);
+    assign translate_en = (priv_mode != PRIV_M) && (satp[63:60] == 4'd8);
 
     always_comb begin
         vpn[0] = saved_req.addr[20:12];
@@ -140,6 +141,8 @@ module MMU
             S_ACCESS: begin
                 preq_next = saved_req;
                 preq_next.addr = translated_addr;
+            end
+            S_ACCESS_WAIT: begin
                 vresp = presp;
             end
             S_FAULT: begin
@@ -183,6 +186,7 @@ module MMU
                 S_IDLE: begin
                     if (translate_en && vreq.valid) begin
                         saved_req <= vreq;
+                        saved_req.priv <= priv_mode;
                         base_addr <= {8'b0, satp[43:0], 12'b0};
                         level <= 2'd2;
                         fault_cause_r <= page_fault_cause(vreq.access);
@@ -215,7 +219,11 @@ module MMU
                 S_ACCESS: begin
                     if (!pte_valid || !perm_ok || !align_ok)
                         state <= S_FAULT;
-                    else if (presp.data_ok)
+                    else
+                        state <= S_ACCESS_WAIT;
+                end
+                S_ACCESS_WAIT: begin
+                    if (presp.data_ok)
                         state <= S_IDLE;
                 end
                 S_FAULT: begin

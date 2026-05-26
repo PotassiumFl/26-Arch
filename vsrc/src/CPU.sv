@@ -99,13 +99,19 @@ module CPU import common::*; import csr_pkg::*; (
 
     u64      csr_read_rdata_wire;
     priv_mode_t priv_mode;
-    logic    trap_commit;
+    logic    ecall_commit;
+    logic    trap_event;
     logic    mret_commit;
+    logic    sret_commit;
+    logic    trap_to_s;
     logic    trap_en_csr;
-    u64      trap_mepc_csr;
-    u64      trap_mcause_csr;
-    u64      trap_mtval_csr;
-    priv_mode_t trap_priv_csr;
+    u64      trap_epc_csr;
+    u64      trap_cause_csr;
+    u64      trap_tval_csr;
+    priv_mode_t trap_prev_priv_csr;
+    u64      trap_vector_csr;
+    logic [5:0] trap_code_idx;
+    logic    trap_is_interrupt;
 
     logic redirect_valid_fetch;
 
@@ -118,29 +124,49 @@ module CPU import common::*; import csr_pkg::*; (
         hazard_stall | (ex_mem_mem_op && !(mem_busy && dresp.data_ok));
     assign redirect_take_branch = redirect_valid_alu & ~stall_ex;
     assign csr_commit_flush     = wb_fire & wb_next.valid & wb_next.is_csr;
-    assign trap_commit          = wb_fire & wb_next.valid & (wb_next.system_op == SYS_ECALL);
-    assign mret_commit          = wb_fire & wb_next.valid & (wb_next.system_op == SYS_MRET);
+    assign ecall_commit         = wb_fire & wb_next.valid && (wb_next.system_op == SYS_ECALL);
+    assign mret_commit          = wb_fire & wb_next.valid && (wb_next.system_op == SYS_MRET);
+    assign sret_commit          = wb_fire & wb_next.valid && (wb_next.system_op == SYS_SRET);
+    assign trap_event           = mmu_fault_valid | ecall_commit;
     assign redirect_valid_fetch =
-        mmu_fault_valid | trap_commit | mret_commit | csr_commit_flush | redirect_take_branch;
-    assign redirect_pc = (mmu_fault_valid | trap_commit) ? mtvec_c :
+        trap_event | mret_commit | sret_commit | csr_commit_flush | redirect_take_branch;
+    assign redirect_pc = trap_event ? trap_vector_csr :
         (mret_commit ? mepc_c :
+        (sret_commit ? sepc_c :
         (csr_commit_flush ? wb_next.decoder_ctrl.pc + 64'd4 :
-        redirect_pc_alu));
+        redirect_pc_alu)));
 
     always_comb begin
-        trap_en_csr     = 1'b0;
-        trap_mepc_csr   = wb_next.decoder_ctrl.pc;
-        trap_mcause_csr = (priv_mode == PRIV_U) ? 64'd8 : 64'd11;
-        trap_mtval_csr  = 64'b0;
-        trap_priv_csr   = priv_mode;
+        trap_en_csr        = 1'b0;
+        trap_epc_csr       = wb_next.decoder_ctrl.pc;
+        trap_cause_csr     = (priv_mode == PRIV_U) ? 64'd8 :
+            ((priv_mode == PRIV_S) ? 64'd9 : 64'd11);
+        trap_tval_csr      = 64'b0;
+        trap_prev_priv_csr = priv_mode;
+        trap_is_interrupt  = 1'b0;
+        trap_code_idx      = trap_cause_csr[5:0];
+        trap_to_s          = 1'b0;
+        trap_vector_csr    = mtvec_c;
         if (mmu_fault_valid) begin
-            trap_en_csr     = 1'b1;
-            trap_mepc_csr   = (mmu_fault_cause == 64'd12) ?
+            trap_en_csr        = 1'b1;
+            trap_epc_csr       = (mmu_fault_cause == 64'd12) ?
                 mmu_fault_vaddr : ex_mem.decoder_ctrl.pc;
-            trap_mcause_csr = mmu_fault_cause;
-            trap_mtval_csr  = mmu_fault_vaddr;
-        end else if (trap_commit) begin
+            trap_cause_csr     = mmu_fault_cause;
+            trap_tval_csr      = mmu_fault_vaddr;
+            trap_code_idx      = mmu_fault_cause[5:0];
+        end else if (ecall_commit) begin
             trap_en_csr = 1'b1;
+        end
+
+        if (trap_en_csr) begin
+            trap_is_interrupt = trap_cause_csr[63];
+            if (priv_mode != PRIV_M) begin
+                if (trap_is_interrupt)
+                    trap_to_s = mideleg_c[trap_code_idx];
+                else
+                    trap_to_s = medeleg_c[trap_code_idx];
+            end
+            trap_vector_csr = trap_to_s ? stvec_c : mtvec_c;
         end
     end
 
@@ -191,11 +217,13 @@ module CPU import common::*; import csr_pkg::*; (
                     .write_addr(csr_write_addr_pulse),
                     .write_data(csr_write_value),
                     .trap_en   (trap_en_csr),
-                    .trap_mepc (trap_mepc_csr),
-                    .trap_mcause(trap_mcause_csr),
-                    .trap_mtval(trap_mtval_csr),
-                    .trap_priv (trap_priv_csr),
+                    .trap_to_s (trap_to_s),
+                    .trap_epc  (trap_epc_csr),
+                    .trap_cause(trap_cause_csr),
+                    .trap_tval (trap_tval_csr),
+                    .trap_prev_priv(trap_prev_priv_csr),
                     .mret_en   (mret_commit),
+                    .sret_en   (sret_commit),
                     .dbg_mhartid  (mhartid_c),
                     .dbg_mcycle   (mcycle_c),
                     .dbg_mstatus  (mstatus_c),
@@ -234,10 +262,12 @@ module CPU import common::*; import csr_pkg::*; (
     always_ff @(posedge clk or posedge reset) begin
         if (reset)
             priv_mode <= PRIV_M;
-        else if (mmu_fault_valid || trap_commit)
-            priv_mode <= PRIV_M;
+        else if (trap_event)
+            priv_mode <= trap_to_s ? PRIV_S : PRIV_M;
         else if (mret_commit)
             priv_mode <= priv_mode_t'(mstatus_c[12:11]);
+        else if (sret_commit)
+            priv_mode <= mstatus_c[8] ? PRIV_S : PRIV_U;
     end
 
     /**

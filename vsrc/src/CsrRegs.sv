@@ -15,11 +15,13 @@ module CsrRegs import common::*; import csr_pkg::*; (
     input  u12     write_addr,
     input  u64     write_data,
     input  logic   trap_en,
-    input  u64     trap_mepc,
-    input  u64     trap_mcause,
-    input  u64     trap_mtval,
-    input  priv_mode_t trap_priv,
+    input  logic   trap_to_s,
+    input  u64     trap_epc,
+    input  u64     trap_cause,
+    input  u64     trap_tval,
+    input  priv_mode_t trap_prev_priv,
     input  logic   mret_en,
+    input  logic   sret_en,
     output u64     dbg_mhartid,
     output u64     dbg_mcycle,
     output u64     dbg_mstatus,
@@ -129,12 +131,21 @@ module CsrRegs import common::*; import csr_pkg::*; (
                 mcycle_r <= mcycle_r + 64'd1;
 
             if (trap_en) begin
-                mepc_r          <= trap_mepc;
-                mcause_r        <= trap_mcause;
-                mtval_r         <= trap_mtval;
-                mstatus_r[7]    <= mstatus_r[3];      // MPIE <= MIE
-                mstatus_r[3]    <= 1'b0;              // MIE <= 0
-                mstatus_r[12:11]<= trap_priv;
+                if (trap_to_s) begin
+                    sepc_r       <= trap_epc;
+                    scause_r     <= trap_cause;
+                    stval_r      <= trap_tval;
+                    mstatus_r[5] <= mstatus_r[1];      // SPIE <= SIE
+                    mstatus_r[1] <= 1'b0;              // SIE <= 0
+                    mstatus_r[8] <= (trap_prev_priv == PRIV_S); // SPP
+                end else begin
+                    mepc_r           <= trap_epc;
+                    mcause_r         <= trap_cause;
+                    mtval_r          <= trap_tval;
+                    mstatus_r[7]     <= mstatus_r[3];      // MPIE <= MIE
+                    mstatus_r[3]     <= 1'b0;              // MIE <= 0
+                    mstatus_r[12:11] <= trap_prev_priv;
+                end
             end
             else if (mret_en) begin
                 mstatus_r[3]    <= mstatus_r[7];      // MIE <= MPIE
@@ -142,6 +153,12 @@ module CsrRegs import common::*; import csr_pkg::*; (
                 mstatus_r[12:11]<= PRIV_U;
                 if (mstatus_r[12:11] != PRIV_M)
                     mstatus_r[17] <= 1'b0;            // MPRV <= 0 when returning below M
+            end
+            else if (sret_en) begin
+                mstatus_r[1] <= mstatus_r[5];         // SIE <= SPIE
+                mstatus_r[5] <= 1'b1;                 // SPIE <= 1
+                mstatus_r[8] <= 1'b0;                 // SPP <= U
+                mstatus_r[17] <= 1'b0;                // y != M => clear MPRV
             end
             else if (write_en && write_addr != CSR_MCYCLE) begin
                 unique case (write_addr)

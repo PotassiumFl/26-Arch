@@ -33,11 +33,11 @@ package csr_pkg;
   parameter u12 CSR_SIP = 12'h144;
 
   parameter u64 MSTATUS_MASK = 64'h7e79bb;
-  parameter u64 SSTATUS_MASK = 64'h800000030001e000;
+  parameter u64 SSTATUS_MASK = 64'h80000003000DE762;
   parameter u64 MIP_MASK = 64'h333;
   parameter u64 MTVEC_MASK = ~(64'h2);
-  parameter u64 MEDELEG_MASK = 64'h0;
-  parameter u64 MIDELEG_MASK = 64'h0;
+  parameter u64 MEDELEG_MASK = 64'h000000000000B3FF;
+  parameter u64 MIDELEG_MASK = 64'h0000000000000222;
   // Lab bonus: sie/sip use the same writable bit positions as mip in this core.
   parameter u64 SIE_MASK  = MIP_MASK;
   parameter u64 SIP_MASK  = MIP_MASK;

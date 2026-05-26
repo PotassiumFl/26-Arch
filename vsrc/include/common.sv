@@ -319,7 +319,8 @@ typedef enum i1 {
 typedef enum i2 {
     SYS_NONE  = 2'd0,
     SYS_ECALL = 2'd1,
-    SYS_MRET  = 2'd2
+    SYS_MRET  = 2'd2,
+    SYS_SRET  = 2'd3
 } system_op_t;
 
 typedef enum i2 {

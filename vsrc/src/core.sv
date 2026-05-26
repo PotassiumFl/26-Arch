@@ -9,7 +9,7 @@
 
 
 
-module core import common::*;(
+module core import common::*; import csr_pkg::*;(
 	input  logic       clk, reset,
 	output ibus_req_t  ireq,
 	input  ibus_resp_t iresp,
@@ -168,7 +168,7 @@ module core import common::*;(
 		.coreid             (mhartid_c[7:0]),
 		.priviledgeMode     (priv_mode),
 		.mstatus            (mstatus_c),
-		.sstatus            (mstatus_c & 64'h800000030001e000),
+		.sstatus            (mstatus_c & SSTATUS_MASK),
 		.mepc               (mepc_c),
 		.sepc               (sepc_c),
 		.mtval              (mtval_c),
