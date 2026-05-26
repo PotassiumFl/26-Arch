@@ -14,6 +14,12 @@ module CsrRegs import common::*; import csr_pkg::*; (
     input  logic   write_en,
     input  u12     write_addr,
     input  u64     write_data,
+    input  logic   trap_en,
+    input  u64     trap_mepc,
+    input  u64     trap_mcause,
+    input  u64     trap_mtval,
+    input  priv_mode_t trap_priv,
+    input  logic   mret_en,
     output u64     dbg_mhartid,
     output u64     dbg_mcycle,
     output u64     dbg_mstatus,
@@ -122,7 +128,22 @@ module CsrRegs import common::*; import csr_pkg::*; (
             else
                 mcycle_r <= mcycle_r + 64'd1;
 
-            if (write_en && write_addr != CSR_MCYCLE) begin
+            if (trap_en) begin
+                mepc_r          <= trap_mepc;
+                mcause_r        <= trap_mcause;
+                mtval_r         <= trap_mtval;
+                mstatus_r[7]    <= mstatus_r[3];      // MPIE <= MIE
+                mstatus_r[3]    <= 1'b0;              // MIE <= 0
+                mstatus_r[12:11]<= trap_priv;
+            end
+            else if (mret_en) begin
+                mstatus_r[3]    <= mstatus_r[7];      // MIE <= MPIE
+                mstatus_r[7]    <= 1'b1;              // MPIE <= 1
+                mstatus_r[12:11]<= PRIV_U;
+                if (mstatus_r[12:11] != PRIV_M)
+                    mstatus_r[17] <= 1'b0;            // MPRV <= 0 when returning below M
+            end
+            else if (write_en && write_addr != CSR_MCYCLE) begin
                 unique case (write_addr)
                     CSR_MSTATUS:
                         mstatus_r <= (~MSTATUS_MASK & mstatus_r) |

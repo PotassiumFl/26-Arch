@@ -4,9 +4,9 @@
 `ifdef VERILATOR
 `include "include/common.sv"
 `include "src/core.sv"
-`include "util/IBusToCBus.sv"
 `include "util/DBusToCBus.sv"
-`include "util/CBusArbiter.sv"
+`include "util/DBusArbiter.sv"
+`include "src/MMU.sv"
 
 `endif
 module VTop 
@@ -20,22 +20,57 @@ module VTop
 
     ibus_req_t  ireq;
     ibus_resp_t iresp;
-    dbus_req_t  dreq;
-    dbus_resp_t dresp;
-    cbus_req_t  icreq,  dcreq;
-    cbus_resp_t icresp, dcresp;
+    dbus_req_t  fetch_dreq, mem_dreq, cpu_dreq, mmu_dreq;
+    dbus_resp_t fetch_dresp, mem_dresp, cpu_dresp, mmu_dresp;
+    cbus_req_t  dcreq;
+    cbus_resp_t dcresp;
+    priv_mode_t priv_mode;
+    u64 satp;
+    logic mmu_fault_valid;
+    u64 mmu_fault_vaddr;
+    u64 mmu_fault_cause;
 
-    core core(.*);
-    IBusToCBus icvt(.*);
-
-    DBusToCBus dcvt(.*);
-
-
-    CBusArbiter mux(
-        .ireqs({icreq, dcreq}),
-        .iresps({icresp, dcresp}),
-        .*
+    core core(
+        .clk, .reset,
+        .ireq, .iresp,
+        .fetch_dreq, .fetch_dresp,
+        .dreq(mem_dreq), .dresp(mem_dresp),
+        .trint, .swint, .exint,
+        .mmu_fault_valid, .mmu_fault_vaddr, .mmu_fault_cause,
+        .priv_mode, .satp
     );
+
+    DBusArbiter dbus_mux(
+        .clk, .reset,
+        .ireqs({fetch_dreq, mem_dreq}),
+        .iresps({fetch_dresp, mem_dresp}),
+        .oreq(cpu_dreq),
+        .oresp(cpu_dresp)
+    );
+
+    MMU mmu(
+        .clk, .reset,
+        .priv_mode, .satp,
+        .vreq(cpu_dreq),
+        .vresp(cpu_dresp),
+        .preq(mmu_dreq),
+        .presp(mmu_dresp),
+        .fault_valid(mmu_fault_valid),
+        .fault_vaddr(mmu_fault_vaddr),
+        .fault_cause(mmu_fault_cause)
+    );
+
+    DBusToCBus dcvt(
+        .clk, .reset,
+        .dreq(mmu_dreq),
+        .dresp(mmu_dresp),
+        .dcreq(dcreq),
+        .dcresp(dcresp)
+    );
+
+    assign oreq = dcreq;
+    assign dcresp = oresp;
+    assign iresp = '0;
 
 	always_ff @(posedge clk) begin
 		if (~reset) begin

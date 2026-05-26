@@ -9,6 +9,8 @@
 
 module IBusToCBus 
     import common::*;(
+    input  logic       clk,
+    input  logic       reset,
     input  ibus_req_t  ireq,
     output ibus_resp_t iresp,
     output cbus_req_t  icreq,
@@ -17,6 +19,8 @@ module IBusToCBus
     // since IBus is a subset of DBus, we can reuse DBusToCBus.
     dbus_resp_t dresp;
     DBusToCBus inst(
+        .clk(clk),
+        .reset(reset),
         .dreq(`IREQ_TO_DREQ(ireq)),
         .dresp(dresp),
         .dcreq(icreq),

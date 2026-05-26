@@ -179,6 +179,7 @@ module ALU import common::*; (
     assign ex_mem_next.csr_addr  = id_ex.csr_addr;
     assign ex_mem_next.csr_funct3 = id_ex.csr_funct3;
     assign ex_mem_next.csr_rsdata = csr_opnd_pick;
+    assign ex_mem_next.system_op = id_ex.system_op;
 
     always_ff @(posedge clk or posedge reset) begin
         if (reset)

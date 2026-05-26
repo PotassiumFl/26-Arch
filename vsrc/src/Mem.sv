@@ -9,6 +9,7 @@ module Mem import common::*; (
     input  logic clk,
     input  logic reset,
     input  logic hazard_stall,
+    input  priv_mode_t priv_mode,
     input  EX_MEM_t ex_mem,
     input  u64 csr_read_rdata,
     output MEM_WB_t mem_wb,
@@ -40,6 +41,8 @@ module Mem import common::*; (
         dreq       = '0;
         dreq.valid = mem_busy;
         dreq.addr  = daddr;
+        dreq.access = (ex_mem.mem_op == MEM_STORE) ? DBUS_STORE : DBUS_LOAD;
+        dreq.priv = priv_mode;
         if (mem_busy) begin
             unique case (ex_mem.mem_op)
                 MEM_LOAD: begin
@@ -134,6 +137,7 @@ module Mem import common::*; (
         mem_wb_next.csr_addr     = ex_mem.csr_addr;
         mem_wb_next.csr_funct3   = ex_mem.csr_funct3;
         mem_wb_next.csr_rsdata   = ex_mem.csr_rsdata;
+        mem_wb_next.system_op    = ex_mem.system_op;
         if (ex_mem.mem_op == MEM_LOAD)
             mem_wb_next.result = load_extend(dresp.data, ex_mem.alu_result, ex_mem.ls_funct3);
         else if (ex_mem.is_csr)

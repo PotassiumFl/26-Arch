@@ -172,12 +172,26 @@ parameter mlen_t AXI_BURST_LEN =AXI_BURST_NUM == 16 ? MLEN16 :
 /**
  * data cache bus
  */
+ typedef enum i2 {
+    PRIV_U = 2'b00,
+    PRIV_S = 2'b01,
+    PRIV_M = 2'b11
+} priv_mode_t;
+
+typedef enum i2 {
+    DBUS_FETCH = 2'd0,
+    DBUS_LOAD  = 2'd1,
+    DBUS_STORE = 2'd2
+} dbus_access_t;
+
 typedef struct packed {
     logic    valid;     // in request?
     addr_t   addr;      // target address
     msize_t  size;      // number of bytes
     strobe_t strobe;    // which bytes are enabled? set to zeros for read request
     word_t   data;      // the data to write
+    dbus_access_t access;
+    priv_mode_t priv;
 } dbus_req_t;
 
 typedef struct packed {
@@ -204,7 +218,7 @@ typedef struct packed {
 } ibus_resp_t;
 
 `define IREQ_TO_DREQ(ireq) \
-    {ireq, MSIZE4, 8'b0, 64'b0}
+    {ireq.valid, ireq.addr, MSIZE4, 8'b0, 64'b0, DBUS_FETCH, PRIV_M}
 
 `define DRESP_TO_IRESP(dresp, ireq) \
     {dresp.addr_ok, dresp.data_ok, ireq.addr[2] ? dresp.data[63:32] : dresp.data[31:0]}
@@ -303,6 +317,12 @@ typedef enum i1 {
 } word_type_t; // word index
 
 typedef enum i2 {
+    SYS_NONE  = 2'd0,
+    SYS_ECALL = 2'd1,
+    SYS_MRET  = 2'd2
+} system_op_t;
+
+typedef enum i2 {
     MEM_NONE  = 2'd0,
     MEM_LOAD  = 2'd1,
     MEM_STORE = 2'd2
@@ -374,6 +394,7 @@ typedef struct packed {
     u3              csr_funct3;
     u1              csr_imm;
     u5              csr_zimm;
+    system_op_t     system_op;
 } ID_EX_t;
 
 typedef struct packed {
@@ -389,6 +410,7 @@ typedef struct packed {
     csr_addr_t      csr_addr;
     u3              csr_funct3;
     i64             csr_rsdata;
+    system_op_t     system_op;
 } EX_MEM_t;
 
 typedef struct packed {
@@ -403,6 +425,7 @@ typedef struct packed {
     csr_addr_t      csr_addr;
     u3              csr_funct3;
     i64             csr_rsdata;
+    system_op_t     system_op;
 } MEM_WB_t;
 
 endpackage

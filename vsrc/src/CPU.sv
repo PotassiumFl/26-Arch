@@ -21,8 +21,14 @@ module CPU import common::*; import csr_pkg::*; (
     input  logic        clk,reset,
     input  ibus_resp_t  iresp,
     output ibus_req_t   ireq,
+    input  dbus_resp_t  fetch_dresp,
+    output dbus_req_t   fetch_dreq,
     input  dbus_resp_t  dresp,
     output dbus_req_t   dreq,
+    input  logic        mmu_fault_valid,
+    input  u64          mmu_fault_vaddr,
+    input  u64          mmu_fault_cause,
+    output priv_mode_t  priv_mode_c,
     output logic        valid_c,
 	output u64          pc_c,
 	output u32          instr_c,
@@ -92,9 +98,19 @@ module CPU import common::*; import csr_pkg::*; (
     u12      csr_write_addr_pulse;
 
     u64      csr_read_rdata_wire;
+    priv_mode_t priv_mode;
+    logic    trap_commit;
+    logic    mret_commit;
+    logic    trap_en_csr;
+    u64      trap_mepc_csr;
+    u64      trap_mcause_csr;
+    u64      trap_mtval_csr;
+    priv_mode_t trap_priv_csr;
 
     logic redirect_valid_fetch;
 
+    assign priv_mode_c = priv_mode;
+    assign ireq = '0;
     assign ex_mem_mem_op = ex_mem.valid && ex_mem.mem_op != MEM_NONE;
     assign stall_fetch =
         hazard_stall | ex_mem_mem_op;
@@ -102,11 +118,31 @@ module CPU import common::*; import csr_pkg::*; (
         hazard_stall | (ex_mem_mem_op && !(mem_busy && dresp.data_ok));
     assign redirect_take_branch = redirect_valid_alu & ~stall_ex;
     assign csr_commit_flush     = wb_fire & wb_next.valid & wb_next.is_csr;
+    assign trap_commit          = wb_fire & wb_next.valid & (wb_next.system_op == SYS_ECALL);
+    assign mret_commit          = wb_fire & wb_next.valid & (wb_next.system_op == SYS_MRET);
     assign redirect_valid_fetch =
-        csr_commit_flush | redirect_take_branch;
-    assign redirect_pc = csr_commit_flush ?
-        wb_next.decoder_ctrl.pc + 64'd4 :
-        redirect_pc_alu;
+        mmu_fault_valid | trap_commit | mret_commit | csr_commit_flush | redirect_take_branch;
+    assign redirect_pc = (mmu_fault_valid | trap_commit) ? mtvec_c :
+        (mret_commit ? mepc_c :
+        (csr_commit_flush ? wb_next.decoder_ctrl.pc + 64'd4 :
+        redirect_pc_alu));
+
+    always_comb begin
+        trap_en_csr     = 1'b0;
+        trap_mepc_csr   = wb_next.decoder_ctrl.pc;
+        trap_mcause_csr = (priv_mode == PRIV_U) ? 64'd8 : 64'd11;
+        trap_mtval_csr  = 64'b0;
+        trap_priv_csr   = priv_mode;
+        if (mmu_fault_valid) begin
+            trap_en_csr     = 1'b1;
+            trap_mepc_csr   = (mmu_fault_cause == 64'd12) ?
+                mmu_fault_vaddr : ex_mem.decoder_ctrl.pc;
+            trap_mcause_csr = mmu_fault_cause;
+            trap_mtval_csr  = mmu_fault_vaddr;
+        end else if (trap_commit) begin
+            trap_en_csr = 1'b1;
+        end
+    end
 
     function automatic logic csr_funct_writes_state(u3 f3, i64 csr_rs);
         unique case (f3)
@@ -154,6 +190,12 @@ module CPU import common::*; import csr_pkg::*; (
                     .write_en  (csr_write_pulse),
                     .write_addr(csr_write_addr_pulse),
                     .write_data(csr_write_value),
+                    .trap_en   (trap_en_csr),
+                    .trap_mepc (trap_mepc_csr),
+                    .trap_mcause(trap_mcause_csr),
+                    .trap_mtval(trap_mtval_csr),
+                    .trap_priv (trap_priv_csr),
+                    .mret_en   (mret_commit),
                     .dbg_mhartid  (mhartid_c),
                     .dbg_mcycle   (mcycle_c),
                     .dbg_mstatus  (mstatus_c),
@@ -186,7 +228,16 @@ module CPU import common::*; import csr_pkg::*; (
         if (reset)
             valid_c <= 1'b0;
         else
-            valid_c <= wb_fire;
+            valid_c <= wb_fire && !mmu_fault_valid;
+    end
+
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset)
+            priv_mode <= PRIV_M;
+        else if (mmu_fault_valid || trap_commit)
+            priv_mode <= PRIV_M;
+        else if (mret_commit)
+            priv_mode <= priv_mode_t'(mstatus_c[12:11]);
     end
 
     /**
@@ -196,10 +247,11 @@ module CPU import common::*; import csr_pkg::*; (
         .clk(clk),
         .reset(reset),
         .stall(stall_fetch),
+        .priv_mode(priv_mode),
         .redirect_valid(redirect_valid_fetch),
         .redirect_pc(redirect_pc),
-        .iresp(iresp),
-        .ireq(ireq),
+        .dresp(fetch_dresp),
+        .dreq(fetch_dreq),
         .if_id(if_id)
     );
 
@@ -231,6 +283,7 @@ module CPU import common::*; import csr_pkg::*; (
         .clk(clk),
         .reset(reset),
         .hazard_stall(hazard_stall),
+        .priv_mode(priv_mode),
         .ex_mem(ex_mem),
         .csr_read_rdata(csr_read_rdata_wire),
         .mem_wb(mem_wb),
@@ -261,5 +314,7 @@ module CPU import common::*; import csr_pkg::*; (
         .ex_mem(ex_mem),
         .stall(hazard_stall)
     );
+
+    `UNUSED_OK({iresp});
 endmodule
 `endif

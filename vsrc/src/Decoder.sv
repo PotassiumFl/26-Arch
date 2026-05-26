@@ -272,6 +272,10 @@ module Decoder import common::*; (
                                     instr[19:15];
                         end
                         default: begin
+                            if (instr == 32'h00000073)
+                                id_ex_next.system_op = SYS_ECALL;
+                            else if (instr == 32'h30200073)
+                                id_ex_next.system_op = SYS_MRET;
                         end
                     endcase
                 end

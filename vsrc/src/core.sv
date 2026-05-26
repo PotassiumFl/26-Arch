@@ -13,9 +13,16 @@ module core import common::*;(
 	input  logic       clk, reset,
 	output ibus_req_t  ireq,
 	input  ibus_resp_t iresp,
+	output dbus_req_t  fetch_dreq,
+	input  dbus_resp_t fetch_dresp,
 	output dbus_req_t  dreq,
 	input  dbus_resp_t dresp,
-	input  logic       trint, swint, exint
+	input  logic       trint, swint, exint,
+	input  logic       mmu_fault_valid,
+	input  u64         mmu_fault_vaddr,
+	input  u64         mmu_fault_cause,
+	output priv_mode_t priv_mode,
+	output u64         satp
 );
 
 	/**
@@ -54,8 +61,14 @@ module core import common::*;(
 		.reset(reset),
 		.iresp(iresp),
 		.ireq(ireq),
+		.fetch_dresp(fetch_dresp),
+		.fetch_dreq(fetch_dreq),
 		.dresp(dresp),
 		.dreq(dreq),
+		.mmu_fault_valid(mmu_fault_valid),
+		.mmu_fault_vaddr(mmu_fault_vaddr),
+		.mmu_fault_cause(mmu_fault_cause),
+		.priv_mode_c(priv_mode),
 		.valid_c(valid_c),
 		.pc_c(pc_c),
 		.instr_c(instr_c),
@@ -84,6 +97,8 @@ module core import common::*;(
 		.scause_c(scause_c),
 		.sscratch_c(sscratch_c)
 	);
+
+	assign satp = satp_c;
 
 `ifdef VERILATOR
 	DifftestInstrCommit DifftestInstrCommit(
@@ -151,7 +166,7 @@ module core import common::*;(
 	DifftestCSRState DifftestCSRState(
 		.clock              (clk),
 		.coreid             (mhartid_c[7:0]),
-		.priviledgeMode     (3),
+		.priviledgeMode     (priv_mode),
 		.mstatus            (mstatus_c),
 		.sstatus            (mstatus_c & 64'h800000030001e000),
 		.mepc               (mepc_c),
