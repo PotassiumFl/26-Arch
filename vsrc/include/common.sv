@@ -265,7 +265,8 @@ typedef enum i7{
     JAL       = 7'b1101111,
     JALR      = 7'b1100111,
     AUIPC     = 7'b0010111,
-    SYSTEM    = 7'b1110011
+    SYSTEM    = 7'b1110011,
+    CUSTOM_TRAP = 7'b1101011
 } funct7_t;
 
 /**
@@ -396,6 +397,7 @@ typedef struct packed {
     u1              csr_imm;
     u5              csr_zimm;
     system_op_t     system_op;
+    logic           illegal;
 } ID_EX_t;
 
 typedef struct packed {

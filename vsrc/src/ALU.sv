@@ -12,9 +12,14 @@ module ALU import common::*; (
     input   logic       wb_fire,
     input   MEM_WB_t    wb_next,
     input   logic       stall,
+    input   logic       pipeline_flush,
     output  EX_MEM_t    ex_mem,
     output  logic       redirect_valid,
-    output  addr_t      redirect_pc
+    output  addr_t      redirect_pc,
+    output  logic       trap_valid,
+    output  u64         trap_cause,
+    output  u64         trap_tval,
+    output  u64         trap_epc
 );
 
     EX_MEM_t ex_mem_next;
@@ -28,6 +33,7 @@ module ALU import common::*; (
     i64 forwarded_rs2;
 
     logic branch_taken;
+    addr_t jalr_target;
 
     Forward forward (
         .id_ex(id_ex),
@@ -96,6 +102,8 @@ module ALU import common::*; (
         end
     end
 
+    assign jalr_target = operandA + id_ex.imm_pc;
+
     always_comb begin : redirect_logic
         redirect_valid = 1'b0;
         redirect_pc    = id_ex.decoder_ctrl.pc;
@@ -112,13 +120,21 @@ module ALU import common::*; (
                     redirect_pc    = id_ex.decoder_ctrl.pc + id_ex.imm_pc;
                 end
                 CFLOW_JALR: begin
-                    redirect_valid = 1'b1;
-                    redirect_pc    = (operandA + id_ex.imm_pc) & ~64'd1;
+                    if (jalr_target[1:0] == 2'b00) begin
+                        redirect_valid = 1'b1;
+                        redirect_pc    = jalr_target & ~64'd1;
+                    end
                 end
                 default: ;
             endcase
         end
     end
+
+    assign trap_valid = id_ex.valid && id_ex.cflow == CFLOW_JALR &&
+        (jalr_target[1:0] != 2'b00);
+    assign trap_cause = 64'd0;
+    assign trap_tval  = jalr_target;
+    assign trap_epc   = id_ex.decoder_ctrl.pc;
 
     logic [31:0] a32, b32, r32;
     always_comb begin : opr_ex
@@ -183,6 +199,8 @@ module ALU import common::*; (
 
     always_ff @(posedge clk or posedge reset) begin
         if (reset)
+            ex_mem <= '0;
+        else if (pipeline_flush)
             ex_mem <= '0;
         else if (!stall)
             ex_mem <= ex_mem_next;

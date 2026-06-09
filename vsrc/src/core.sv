@@ -55,6 +55,7 @@ module core import common::*; import csr_pkg::*;(
 	u64 	stvec_c;
 	u64 	scause_c;
 	u64 	sscratch_c;
+	logic 	custom_trap_commit;
 
 	CPU cpu(
 		.clk(clk),
@@ -68,6 +69,9 @@ module core import common::*; import csr_pkg::*;(
 		.mmu_fault_valid(mmu_fault_valid),
 		.mmu_fault_vaddr(mmu_fault_vaddr),
 		.mmu_fault_cause(mmu_fault_cause),
+		.trint(trint),
+		.swint(swint),
+		.exint(exint),
 		.priv_mode_c(priv_mode),
 		.valid_c(valid_c),
 		.pc_c(pc_c),
@@ -95,7 +99,8 @@ module core import common::*; import csr_pkg::*;(
 		.stval_c(stval_c),
 		.stvec_c(stvec_c),
 		.scause_c(scause_c),
-		.sscratch_c(sscratch_c)
+		.sscratch_c(sscratch_c),
+		.custom_trap_commit(custom_trap_commit)
 	);
 
 	assign satp = satp_c;
@@ -153,13 +158,13 @@ module core import common::*; import csr_pkg::*;(
 		.gpr_31             (reg_c[31])
 	);
 
-    DifftestTrapEvent DifftestTrapEvent(
+	DifftestTrapEvent difftest_trap_event(
 		.clock              (clk),
 		.coreid             (mhartid_c[7:0]),
-		.valid              ('0),
-		.code               ('0),
-		.pc                 ('0),
-		.cycleCnt           ('0),
+		.valid              (custom_trap_commit),
+		.code               (reg_c[10][2:0]),
+		.pc                 (pc_c),
+		.cycleCnt           (mcycle_c),
 		.instrCnt           ('0)
 	);
 

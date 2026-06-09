@@ -22,6 +22,9 @@ module CsrRegs import common::*; import csr_pkg::*; (
     input  priv_mode_t trap_prev_priv,
     input  logic   mret_en,
     input  logic   sret_en,
+    input  logic   hw_swint,
+    input  logic   hw_trint,
+    input  logic   hw_exint,
     output u64     dbg_mhartid,
     output u64     dbg_mcycle,
     output u64     dbg_mstatus,
@@ -58,7 +61,10 @@ module CsrRegs import common::*; import csr_pkg::*; (
     assign dbg_mtvec    = mtvec_r;
     assign dbg_mcause   = mcause_r;
     assign dbg_mtval    = mtval_r;
-    assign dbg_mip      = mip_r;
+    assign dbg_mip      = mip_r |
+        ({63'b0, hw_swint} << 3) |
+        ({63'b0, hw_trint} << 7) |
+        ({63'b0, hw_exint} << 11);
     assign dbg_mie      = mie_r;
     assign dbg_mscratch = mscratch_r;
     assign dbg_satp     = satp_r;
@@ -81,7 +87,7 @@ module CsrRegs import common::*; import csr_pkg::*; (
             CSR_MEPC:     read_data = mepc_r;
             CSR_MCAUSE:   read_data = mcause_r;
             CSR_MTVAL:    read_data = mtval_r;
-            CSR_MIP:      read_data = mip_r;
+            CSR_MIP:      read_data = dbg_mip;
             CSR_SATP:     read_data = satp_r;
             CSR_MEDELEG:  read_data = medeleg_r;
             CSR_MIDELEG:  read_data = mideleg_r;

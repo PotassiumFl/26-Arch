@@ -8,3 +8,9 @@ difftest/*
 .vscode/
 .DS_Store
 docs/*
+/.venv
+ready-to-run/lab6/__pycache__/*
+ready-to-run/lab6/assemble_bonus2.py
+ready-to-run/lab6/build-bonus2.sh
+ready-to-run/lab6/lab6-bonus2-mini.bin
+ready-to-run/lab6/link.ld

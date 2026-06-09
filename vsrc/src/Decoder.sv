@@ -241,6 +241,11 @@ module Decoder import common::*; (
                     endcase
                 end
 
+                CUSTOM_TRAP: begin
+                    id_ex_next.reg_write = 1'b0;
+                    id_ex_next.ALU_ctrl.opr = NOTOPR;
+                end
+
                 SYSTEM: begin
                     unique case (funct3)
                         3'b001, /* CSRRW */
@@ -278,12 +283,23 @@ module Decoder import common::*; (
                                 id_ex_next.system_op = SYS_MRET;
                             else if (instr == 32'h10200073)
                                 id_ex_next.system_op = SYS_SRET;
+                            else
+                                id_ex_next.illegal = 1'b1;
                         end
                     endcase
                 end
 
-                default: id_ex_next.reg_write = 1'b0;
+                default: begin
+                    id_ex_next.reg_write = 1'b0;
+                    id_ex_next.illegal   = 1'b1;
+                end
             endcase
+
+            if (id_ex_next.valid && !id_ex_next.illegal && opcode != CUSTOM_TRAP &&
+                    id_ex_next.system_op == SYS_NONE && !id_ex_next.is_csr &&
+                    id_ex_next.mem_op == MEM_NONE && id_ex_next.cflow == CFLOW_ALU &&
+                    id_ex_next.ALU_ctrl.opr == NOTOPR)
+                id_ex_next.illegal = 1'b1;
             end
         end
     end

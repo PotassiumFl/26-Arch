@@ -16,7 +16,8 @@ module Fetch import common::*;(
     input  dbus_resp_t dresp,
     output dbus_req_t  dreq,
 
-    output IF_ID_t     if_id
+    output IF_ID_t     if_id,
+    output addr_t      fetch_pc
 );
 
     u64 pc;
@@ -45,6 +46,7 @@ module Fetch import common::*;(
     assign dreq.data   = 64'b0;
     assign dreq.access = DBUS_FETCH;
     assign dreq.priv   = priv_mode;
+    assign fetch_pc    = pc;
 
     always_ff @(posedge clk or posedge reset) begin : fetch_main
         if(reset) begin

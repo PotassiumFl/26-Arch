@@ -28,6 +28,9 @@ module CPU import common::*; import csr_pkg::*; (
     input  logic        mmu_fault_valid,
     input  u64          mmu_fault_vaddr,
     input  u64          mmu_fault_cause,
+    input  logic        trint,
+    input  logic        swint,
+    input  logic        exint,
     output priv_mode_t  priv_mode_c,
     output logic        valid_c,
 	output u64          pc_c,
@@ -55,7 +58,8 @@ module CPU import common::*; import csr_pkg::*; (
 	output u64          stval_c,
 	output u64          stvec_c,
 	output u64          scause_c,
-	output u64          sscratch_c
+	output u64          sscratch_c,
+	output logic        custom_trap_commit
 );
 
     /**
@@ -101,6 +105,8 @@ module CPU import common::*; import csr_pkg::*; (
     priv_mode_t priv_mode;
     logic    ecall_commit;
     logic    trap_event;
+    logic    pipeline_flush;
+    logic    trap_suppress;
     logic    mret_commit;
     logic    sret_commit;
     logic    trap_to_s;
@@ -114,6 +120,32 @@ module CPU import common::*; import csr_pkg::*; (
     logic    trap_is_interrupt;
 
     logic redirect_valid_fetch;
+    addr_t   fetch_pc;
+
+    logic trap_id_illegal;
+    logic alu_trap_valid;
+    u64    alu_trap_cause;
+    u64    alu_trap_tval;
+    u64    alu_trap_epc;
+    logic mem_trap_valid;
+    u64    mem_trap_cause;
+    u64    mem_trap_tval;
+    u64    mem_trap_epc;
+
+    logic trint_prev;
+    logic swint_prev;
+    logic exint_prev;
+    logic trint_new;
+    logic swint_new;
+    logic exint_new;
+    logic interrupt_trap;
+    u64    interrupt_cause;
+    u64    interrupt_epc;
+    logic int_global_en;
+    logic int_recheck_csr;
+    logic swint_take;
+    logic trint_take;
+    logic exint_take;
 
     assign priv_mode_c = priv_mode;
     assign ireq = '0;
@@ -127,7 +159,109 @@ module CPU import common::*; import csr_pkg::*; (
     assign ecall_commit         = wb_fire & wb_next.valid && (wb_next.system_op == SYS_ECALL);
     assign mret_commit          = wb_fire & wb_next.valid && (wb_next.system_op == SYS_MRET);
     assign sret_commit          = wb_fire & wb_next.valid && (wb_next.system_op == SYS_SRET);
-    assign trap_event           = mmu_fault_valid | ecall_commit;
+
+    assign trap_id_illegal = id_ex.valid && id_ex.illegal;
+
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset) begin
+            trint_prev <= 1'b0;
+            swint_prev <= 1'b0;
+            exint_prev <= 1'b0;
+        end else begin
+            trint_prev <= trint;
+            swint_prev <= swint;
+            exint_prev <= exint;
+        end
+    end
+
+    assign trint_new = trint && !trint_prev;
+    assign swint_new = swint && !swint_prev;
+    assign exint_new = exint && !exint_prev;
+    assign int_recheck_csr = wb_fire && wb_next.valid && wb_next.is_csr && (
+        wb_next.csr_addr == CSR_MSTATUS ||
+        wb_next.csr_addr == CSR_MIE     ||
+        wb_next.csr_addr == CSR_MIP     ||
+        wb_next.csr_addr == CSR_SSTATUS ||
+        wb_next.csr_addr == CSR_SIE     ||
+        wb_next.csr_addr == CSR_SIP
+    );
+
+    logic int_fetch_eval;
+    logic int_mmode_mie_set;
+    u64   mstatus_after_wb;
+    assign int_fetch_eval = if_id.valid && int_priv_en;
+
+    always_comb begin
+        mstatus_after_wb  = mstatus_c;
+        int_mmode_mie_set = 1'b0;
+        if (wb_fire && wb_next.valid && wb_next.is_csr &&
+                wb_next.csr_addr == CSR_MSTATUS &&
+                csr_funct_writes_state(wb_next.csr_funct3, wb_next.csr_rsdata)) begin
+            mstatus_after_wb = (~MSTATUS_MASK & mstatus_c) |
+                (csr_write_result(
+                    mstatus_c, wb_next.csr_rsdata, wb_next.csr_funct3, wb_next.result) &
+                    MSTATUS_MASK);
+            int_mmode_mie_set = mstatus_after_wb[3] && !mstatus_c[3];
+        end
+    end
+
+    always_comb begin
+        interrupt_trap  = 1'b0;
+        interrupt_cause = 64'b0;
+        if (int_mmode_mie_set) begin
+            if (if_id.valid)
+                interrupt_epc = if_id.decoder_ctrl.pc;
+            else
+                interrupt_epc = wb_next.decoder_ctrl.pc + 64'd4;
+        end else if (int_recheck_csr)
+            interrupt_epc = wb_next.decoder_ctrl.pc + 64'd4;
+        else if (if_id.valid)
+            interrupt_epc = if_id.decoder_ctrl.pc;
+        else
+            interrupt_epc = fetch_pc;
+        swint_take      = 1'b0;
+        trint_take      = 1'b0;
+        exint_take      = 1'b0;
+        if (!mret_commit && !sret_commit && int_global_en) begin
+            if (priv_mode == PRIV_M) begin
+                if (int_mmode_mie_set) begin
+                    if (int_mie_eff[3] && mip_c[3] && swint)
+                        swint_take = 1'b1;
+                    if (int_mie_eff[7] && mip_c[7] && trint)
+                        trint_take = 1'b1;
+                    if (int_mie_eff[11] && mip_c[11] && exint)
+                        exint_take = 1'b1;
+                end
+            end else begin
+                if (int_mie_eff[3] && mip_c[3] && swint &&
+                        (swint_new || (int_recheck_csr && swint) || int_fetch_eval))
+                    swint_take = 1'b1;
+                if (int_mie_eff[7] && mip_c[7] && trint &&
+                        (trint_new || (int_recheck_csr && trint) || int_fetch_eval))
+                    trint_take = 1'b1;
+                if (int_mie_eff[11] && mip_c[11] && exint &&
+                        (exint_new || (int_recheck_csr && exint) || int_fetch_eval))
+                    exint_take = 1'b1;
+            end
+        end
+        if (swint_take) begin
+            interrupt_trap  = 1'b1;
+            interrupt_cause = 64'h8000_0000_0000_0003;
+        end else if (trint_take) begin
+            interrupt_trap  = 1'b1;
+            interrupt_cause = 64'h8000_0000_0000_0007;
+        end else if (exint_take) begin
+            interrupt_trap  = 1'b1;
+            interrupt_cause = 64'h8000_0000_0000_000B;
+        end
+    end
+
+    assign trap_event = mmu_fault_valid | trap_id_illegal | alu_trap_valid |
+        mem_trap_valid | interrupt_trap | ecall_commit;
+    assign pipeline_flush = trap_event;
+    assign trap_suppress  = mmu_fault_valid | trap_id_illegal | alu_trap_valid |
+        mem_trap_valid | interrupt_trap;
+
     assign redirect_valid_fetch =
         trap_event | mret_commit | sret_commit | csr_commit_flush | redirect_take_branch;
     assign redirect_pc = trap_event ? trap_vector_csr :
@@ -147,13 +281,38 @@ module CPU import common::*; import csr_pkg::*; (
         trap_code_idx      = trap_cause_csr[5:0];
         trap_to_s          = 1'b0;
         trap_vector_csr    = mtvec_c;
+
         if (mmu_fault_valid) begin
             trap_en_csr        = 1'b1;
             trap_epc_csr       = (mmu_fault_cause == 64'd12) ?
-                mmu_fault_vaddr : ex_mem.decoder_ctrl.pc;
+                fetch_pc : ex_mem.decoder_ctrl.pc;
             trap_cause_csr     = mmu_fault_cause;
             trap_tval_csr      = mmu_fault_vaddr;
             trap_code_idx      = mmu_fault_cause[5:0];
+        end else if (trap_id_illegal) begin
+            trap_en_csr        = 1'b1;
+            trap_epc_csr       = id_ex.decoder_ctrl.pc;
+            trap_cause_csr     = 64'd2;
+            trap_tval_csr      = {32'b0, id_ex.decoder_ctrl.instr};
+            trap_code_idx      = 6'd2;
+        end else if (alu_trap_valid) begin
+            trap_en_csr        = 1'b1;
+            trap_epc_csr       = alu_trap_epc;
+            trap_cause_csr     = alu_trap_cause;
+            trap_tval_csr      = alu_trap_tval;
+            trap_code_idx      = alu_trap_cause[5:0];
+        end else if (mem_trap_valid) begin
+            trap_en_csr        = 1'b1;
+            trap_epc_csr       = mem_trap_epc;
+            trap_cause_csr     = mem_trap_cause;
+            trap_tval_csr      = mem_trap_tval;
+            trap_code_idx      = mem_trap_cause[5:0];
+        end else if (interrupt_trap) begin
+            trap_en_csr        = 1'b1;
+            trap_epc_csr       = interrupt_epc;
+            trap_cause_csr     = interrupt_cause;
+            trap_tval_csr      = 64'b0;
+            trap_code_idx      = interrupt_cause[5:0];
         end else if (ecall_commit) begin
             trap_en_csr = 1'b1;
         end
@@ -184,6 +343,60 @@ module CPU import common::*; import csr_pkg::*; (
                 return 1'b0;
         endcase
     endfunction
+
+    function automatic u64 csr_write_result(
+        input u64 old_val,
+        input u64 rs_val,
+        input u3  f3,
+        input u64 wb_result
+    );
+        unique case (f3)
+            3'b001, 3'b101: return rs_val;
+            3'b010, 3'b110: return wb_result | rs_val;
+            3'b011, 3'b111: return wb_result & (~rs_val);
+            default:        return old_val;
+        endcase
+    endfunction
+
+    logic int_mstatus_mie;
+    logic int_priv_en;
+    u64   int_mie_eff;
+
+    always_comb begin
+        int_mstatus_mie = mstatus_c[3];
+        int_mie_eff     = mie_c;
+        int_priv_en     = (priv_mode != PRIV_M);
+        if (mret_commit) begin
+            int_mstatus_mie = mstatus_c[7];
+            if (mstatus_c[12:11] != PRIV_M)
+                int_priv_en = 1'b1;
+        end else if (sret_commit) begin
+            int_mstatus_mie = mstatus_c[5];
+            int_priv_en     = 1'b1;
+        end else if (wb_fire && wb_next.valid && wb_next.is_csr &&
+                csr_funct_writes_state(wb_next.csr_funct3, wb_next.csr_rsdata)) begin
+            if (wb_next.csr_addr == CSR_MSTATUS)
+                int_mstatus_mie = (((~MSTATUS_MASK & mstatus_c) |
+                    (csr_write_result(
+                        mstatus_c, wb_next.csr_rsdata, wb_next.csr_funct3, wb_next.result) &
+                        MSTATUS_MASK)) >> 3) != 64'd0;
+            if (wb_next.csr_addr == CSR_SSTATUS)
+                int_mstatus_mie = (((~SSTATUS_MASK & mstatus_c) |
+                    (csr_write_result(
+                        mstatus_c, wb_next.csr_rsdata, wb_next.csr_funct3, wb_next.result) &
+                        SSTATUS_MASK)) >> 3) != 64'd0;
+            if (wb_next.csr_addr == CSR_MIE)
+                int_mie_eff = csr_write_result(
+                    mie_c, wb_next.csr_rsdata, wb_next.csr_funct3, wb_next.result);
+            if (wb_next.csr_addr == CSR_SIE)
+                int_mie_eff = (~SIE_MASK & mie_c) |
+                    (csr_write_result(
+                        mie_c, wb_next.csr_rsdata, wb_next.csr_funct3, wb_next.result) &
+                        SIE_MASK);
+        end
+    end
+
+    assign int_global_en = int_priv_en || int_mstatus_mie;
 
     always_comb begin : csr_commit_write
         automatic u64 raw;
@@ -224,6 +437,9 @@ module CPU import common::*; import csr_pkg::*; (
                     .trap_prev_priv(trap_prev_priv_csr),
                     .mret_en   (mret_commit),
                     .sret_en   (sret_commit),
+                    .hw_swint  (swint),
+                    .hw_trint  (trint),
+                    .hw_exint  (exint),
                     .dbg_mhartid  (mhartid_c),
                     .dbg_mcycle   (mcycle_c),
                     .dbg_mstatus  (mstatus_c),
@@ -244,6 +460,9 @@ module CPU import common::*; import csr_pkg::*; (
                     .dbg_sscratch (sscratch_c)
                 );
 
+    assign custom_trap_commit = wb_fire && wb_next.valid &&
+        (wb_next.decoder_ctrl.instr == 32'h0005006b);
+
     assign pc_c     = mem_wb.decoder_ctrl.pc;
     assign instr_c  = mem_wb.decoder_ctrl.instr;
     assign w_en_c   = mem_wb.reg_write;
@@ -256,7 +475,7 @@ module CPU import common::*; import csr_pkg::*; (
         if (reset)
             valid_c <= 1'b0;
         else
-            valid_c <= wb_fire && !mmu_fault_valid;
+            valid_c <= wb_fire && !trap_suppress;
     end
 
     always_ff @(posedge clk or posedge reset) begin
@@ -282,7 +501,8 @@ module CPU import common::*; import csr_pkg::*; (
         .redirect_pc(redirect_pc),
         .dresp(fetch_dresp),
         .dreq(fetch_dreq),
-        .if_id(if_id)
+        .if_id(if_id),
+        .fetch_pc(fetch_pc)
     );
 
     Decoder decoder(
@@ -300,13 +520,18 @@ module CPU import common::*; import csr_pkg::*; (
         .clk(clk),
         .reset(reset),
         .stall(stall_ex),
+        .pipeline_flush(pipeline_flush),
         .id_ex(id_ex),
         .mem_wb(mem_wb),
         .wb_fire(wb_fire),
         .wb_next(wb_next),
         .ex_mem(ex_mem),
         .redirect_valid(redirect_valid_alu),
-        .redirect_pc(redirect_pc_alu)
+        .redirect_pc(redirect_pc_alu),
+        .trap_valid(alu_trap_valid),
+        .trap_cause(alu_trap_cause),
+        .trap_tval(alu_trap_tval),
+        .trap_epc(alu_trap_epc)
     );
 
     Mem mem(
@@ -316,12 +541,17 @@ module CPU import common::*; import csr_pkg::*; (
         .priv_mode(priv_mode),
         .ex_mem(ex_mem),
         .csr_read_rdata(csr_read_rdata_wire),
+        .pipeline_flush(pipeline_flush),
         .mem_wb(mem_wb),
         .dreq(dreq),
         .dresp(dresp),
         .mem_busy(mem_busy),
         .wb_fire(wb_fire),
-        .wb_next(wb_next)
+        .wb_next(wb_next),
+        .trap_valid(mem_trap_valid),
+        .trap_cause(mem_trap_cause),
+        .trap_tval(mem_trap_tval),
+        .trap_epc(mem_trap_epc)
     );
 
     Wb wb(

@@ -12,24 +12,65 @@ module Mem import common::*; (
     input  priv_mode_t priv_mode,
     input  EX_MEM_t ex_mem,
     input  u64 csr_read_rdata,
+    input  logic pipeline_flush,
     output MEM_WB_t mem_wb,
     output dbus_req_t dreq,
     input  dbus_resp_t dresp,
     output logic mem_busy,
     output logic wb_fire,
-    output MEM_WB_t wb_next
+    output MEM_WB_t wb_next,
+    output logic trap_valid,
+    output u64   trap_cause,
+    output u64   trap_tval,
+    output u64   trap_epc
 );
 
     MEM_WB_t mem_wb_next;
+    logic    mem_started;
+
+    function automatic logic ls_misaligned(input addr_t addr, input u3 f3);
+        unique case (f3)
+            3'b000, 3'b100: return 1'b0;
+            3'b001, 3'b101: return addr[0] != 1'b0;
+            3'b010, 3'b110: return addr[1:0] != 2'b00;
+            3'b011:         return addr[2:0] != 3'b000;
+            default:        return 1'b0;
+        endcase
+    endfunction
+
+    logic addr_misalign;
+    assign addr_misalign = ls_misaligned(ex_mem.alu_result, ex_mem.ls_funct3);
+    assign trap_valid = ex_mem.valid && ex_mem.mem_op != MEM_NONE &&
+        addr_misalign && !mem_busy;
+    assign trap_cause = (ex_mem.mem_op == MEM_STORE) ? 64'd6 : 64'd4;
+    assign trap_tval  = ex_mem.alu_result;
+    assign trap_epc   = ex_mem.decoder_ctrl.pc;
 
     always_ff @(posedge clk or posedge reset) begin
         if (reset)
             mem_busy <= 1'b0;
-        else if (mem_busy) begin
+        else if (pipeline_flush) begin
+            if (mem_started && !dresp.data_ok)
+                mem_busy <= 1'b1;
+            else
+                mem_busy <= 1'b0;
+        end else if (mem_busy) begin
             if (dresp.data_ok)
                 mem_busy <= 1'b0;
-        end else if (!mem_busy && ex_mem.valid && ex_mem.mem_op != MEM_NONE)
+        end else if (!mem_busy && ex_mem.valid && ex_mem.mem_op != MEM_NONE &&
+                !addr_misalign)
             mem_busy <= 1'b1;
+    end
+
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset)
+            mem_started <= 1'b0;
+        else if (pipeline_flush && !mem_started)
+            mem_started <= 1'b0;
+        else if (!mem_busy)
+            mem_started <= 1'b0;
+        else if (mem_busy && dreq.valid)
+            mem_started <= 1'b1;
     end
 
     addr_t daddr;
@@ -39,7 +80,7 @@ module Mem import common::*; (
 
     always_comb begin
         dreq       = '0;
-        dreq.valid = mem_busy;
+        dreq.valid = mem_busy && (mem_started || !pipeline_flush);
         dreq.addr  = daddr;
         dreq.access = (ex_mem.mem_op == MEM_STORE) ? DBUS_STORE : DBUS_LOAD;
         dreq.priv = priv_mode;
@@ -152,6 +193,8 @@ module Mem import common::*; (
 
     always_ff @(posedge clk or posedge reset) begin
         if (reset)
+            mem_wb <= '0;
+        else if (pipeline_flush)
             mem_wb <= '0;
         else if (mem_busy && dresp.data_ok)
             mem_wb <= mem_wb_next;
