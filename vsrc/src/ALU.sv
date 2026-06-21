@@ -13,6 +13,7 @@ module ALU import common::*; (
     input   MEM_WB_t    wb_next,
     input   logic       stall,
     input   logic       pipeline_flush,
+    output  logic       muldiv_busy,
     output  EX_MEM_t    ex_mem,
     output  logic       redirect_valid,
     output  addr_t      redirect_pc,
@@ -34,6 +35,14 @@ module ALU import common::*; (
 
     logic branch_taken;
     addr_t jalr_target;
+
+    logic div_op;
+    logic div_start;
+    logic div_consume;
+    logic div_active;
+    logic div_done;
+    logic div_wait;
+    i64   div_result;
 
     Forward forward (
         .id_ex(id_ex),
@@ -87,6 +96,30 @@ module ALU import common::*; (
             shamt_v = id_ex.ALU_ctrl.shamt[5:0];
     end
 
+    assign div_op = id_ex.valid && id_ex.cflow == CFLOW_ALU && (
+        id_ex.ALU_ctrl.opr == DIV  || id_ex.ALU_ctrl.opr == DIVU ||
+        id_ex.ALU_ctrl.opr == REM  || id_ex.ALU_ctrl.opr == REMU
+    );
+    assign div_start   = div_op && !div_active && !stall && !pipeline_flush;
+    assign div_consume = div_op && div_done && !stall && !pipeline_flush;
+    assign div_wait    = div_op && !div_done;
+    assign muldiv_busy = div_op && !pipeline_flush && (!div_done || stall);
+
+    MulDivUnit muldiv_unit (
+        .clk(clk),
+        .reset(reset),
+        .flush(pipeline_flush),
+        .start(div_start),
+        .consume(div_consume),
+        .opr(id_ex.ALU_ctrl.opr),
+        .word_index(id_ex.ALU_ctrl.word_index),
+        .lhs(operandA),
+        .rhs(operandB),
+        .busy(div_active),
+        .done(div_done),
+        .result(div_result)
+    );
+
     always_comb begin : branch_cond
         branch_taken = 1'b0;
         if (id_ex.valid && id_ex.cflow == CFLOW_BR) begin
@@ -105,19 +138,36 @@ module ALU import common::*; (
     assign jalr_target = operandA + id_ex.imm_pc;
 
     always_comb begin : redirect_logic
-        redirect_valid = 1'b0;
-        redirect_pc    = id_ex.decoder_ctrl.pc;
+        automatic addr_t branch_target;
+        automatic addr_t branch_fallthrough;
+        automatic addr_t jal_target;
+
+        branch_target      = id_ex.decoder_ctrl.pc + id_ex.imm_pc;
+        branch_fallthrough = id_ex.decoder_ctrl.pc + 64'd4;
+        jal_target         = id_ex.decoder_ctrl.pc + id_ex.imm_pc;
+        redirect_valid     = 1'b0;
+        redirect_pc        = id_ex.decoder_ctrl.pc;
+
         if (id_ex.valid) begin
             unique case (id_ex.cflow)
                 CFLOW_BR: begin
                     if (branch_taken) begin
+                        if (!id_ex.decoder_ctrl.pred_taken ||
+                                id_ex.decoder_ctrl.pred_target != branch_target) begin
+                            redirect_valid = 1'b1;
+                            redirect_pc    = branch_target;
+                        end
+                    end else if (id_ex.decoder_ctrl.pred_taken) begin
                         redirect_valid = 1'b1;
-                        redirect_pc    = id_ex.decoder_ctrl.pc + id_ex.imm_pc;
+                        redirect_pc    = branch_fallthrough;
                     end
                 end
                 CFLOW_JAL: begin
-                    redirect_valid = 1'b1;
-                    redirect_pc    = id_ex.decoder_ctrl.pc + id_ex.imm_pc;
+                    if (!id_ex.decoder_ctrl.pred_taken ||
+                            id_ex.decoder_ctrl.pred_target != jal_target) begin
+                        redirect_valid = 1'b1;
+                        redirect_pc    = jal_target;
+                    end
                 end
                 CFLOW_JALR: begin
                     if (jalr_target[1:0] == 2'b00) begin
@@ -152,7 +202,12 @@ module ALU import common::*; (
                 SLL:  r32 = a32 << shamt_v[4:0];
                 SLT:  r32 = ($signed(a32) < $signed(b32)) ? 32'd1 : 32'd0;
                 SLTU: r32 = (a32 < b32) ? 32'd1 : 32'd0;
+                MUL:  r32 = a32 * b32;
                 XOR:  r32 = a32 ^ b32;
+                DIV,
+                DIVU,
+                REM,
+                REMU: r32 = div_result[31:0];
                 SRL:  r32 = a32 >> shamt_v[4:0];
                 SRA:  r32 = 32'($signed(a32) >>> shamt_v[4:0]);
                 OR:   r32 = a32 | b32;
@@ -172,30 +227,35 @@ module ALU import common::*; (
                 SRA:     result_tmp = i64'($signed(operandA) >>> shamt_v);
                 OR:      result_tmp = operandA | operandB;
                 AND:     result_tmp = operandA & operandB;
-                NOTOPR,
-                MUL,
+                MUL:     result_tmp = operandA * operandB;
                 DIV,
                 DIVU,
                 REM,
-                REMU: result_tmp = 64'b0;
+                REMU:    result_tmp = div_result;
+                NOTOPR:  result_tmp = 64'b0;
                 default: result_tmp = 64'b0;
             endcase
         end
     end
 
-    assign ex_mem_next.alu_result   = result_tmp;
-    assign ex_mem_next.wd            = id_ex.wd;
-    assign ex_mem_next.reg_write     = id_ex.reg_write;
-    assign ex_mem_next.decoder_ctrl  = id_ex.decoder_ctrl;
-    assign ex_mem_next.valid         = id_ex.valid;
-    assign ex_mem_next.mem_op        = id_ex.mem_op;
-    assign ex_mem_next.ls_funct3     = id_ex.ls_funct3;
-    assign ex_mem_next.store_data = forwarded_rs2;
-    assign ex_mem_next.is_csr    = id_ex.is_csr;
-    assign ex_mem_next.csr_addr  = id_ex.csr_addr;
-    assign ex_mem_next.csr_funct3 = id_ex.csr_funct3;
-    assign ex_mem_next.csr_rsdata = csr_opnd_pick;
-    assign ex_mem_next.system_op = id_ex.system_op;
+    always_comb begin : ex_mem_pack
+        ex_mem_next = '0;
+        if (!div_wait) begin
+            ex_mem_next.alu_result   = result_tmp;
+            ex_mem_next.wd           = id_ex.wd;
+            ex_mem_next.reg_write    = id_ex.reg_write;
+            ex_mem_next.decoder_ctrl = id_ex.decoder_ctrl;
+            ex_mem_next.valid        = id_ex.valid;
+            ex_mem_next.mem_op       = id_ex.mem_op;
+            ex_mem_next.ls_funct3    = id_ex.ls_funct3;
+            ex_mem_next.store_data   = forwarded_rs2;
+            ex_mem_next.is_csr       = id_ex.is_csr;
+            ex_mem_next.csr_addr     = id_ex.csr_addr;
+            ex_mem_next.csr_funct3   = id_ex.csr_funct3;
+            ex_mem_next.csr_rsdata   = csr_opnd_pick;
+            ex_mem_next.system_op    = id_ex.system_op;
+        end
+    end
 
     always_ff @(posedge clk or posedge reset) begin
         if (reset)

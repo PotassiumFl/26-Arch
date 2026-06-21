@@ -211,17 +211,37 @@ module Decoder import common::*; (
                     id_ex_next.reg_write      = 1'b1;
                     id_ex_next.alu_op2_is_rs2 = 1'b1;
                     id_ex_next.uses_rs2       = 1'b1;
-                    unique case (funct3)
-                        3'b000: id_ex_next.ALU_ctrl.opr =
-                            (funct7_full == 7'b0100000) ? SUB : ADD;
-                        3'b001: id_ex_next.ALU_ctrl.opr = SLL;
-                        3'b010: id_ex_next.ALU_ctrl.opr = SLT;
-                        3'b011: id_ex_next.ALU_ctrl.opr = SLTU;
-                        3'b100: id_ex_next.ALU_ctrl.opr = XOR;
-                        3'b101: id_ex_next.ALU_ctrl.opr =
-                            (funct7_full == 7'b0100000) ? SRA : SRL;
-                        3'b110: id_ex_next.ALU_ctrl.opr = OR;
-                        3'b111: id_ex_next.ALU_ctrl.opr = AND;
+                    unique case (funct7_full)
+                        7'b0000000: begin
+                            unique case (funct3)
+                                3'b000: id_ex_next.ALU_ctrl.opr = ADD;
+                                3'b001: id_ex_next.ALU_ctrl.opr = SLL;
+                                3'b010: id_ex_next.ALU_ctrl.opr = SLT;
+                                3'b011: id_ex_next.ALU_ctrl.opr = SLTU;
+                                3'b100: id_ex_next.ALU_ctrl.opr = XOR;
+                                3'b101: id_ex_next.ALU_ctrl.opr = SRL;
+                                3'b110: id_ex_next.ALU_ctrl.opr = OR;
+                                3'b111: id_ex_next.ALU_ctrl.opr = AND;
+                                default: id_ex_next.ALU_ctrl.opr = NOTOPR;
+                            endcase
+                        end
+                        7'b0100000: begin
+                            unique case (funct3)
+                                3'b000: id_ex_next.ALU_ctrl.opr = SUB;
+                                3'b101: id_ex_next.ALU_ctrl.opr = SRA;
+                                default: id_ex_next.ALU_ctrl.opr = NOTOPR;
+                            endcase
+                        end
+                        7'b0000001: begin
+                            unique case (funct3)
+                                3'b000: id_ex_next.ALU_ctrl.opr = MUL;
+                                3'b100: id_ex_next.ALU_ctrl.opr = DIV;
+                                3'b101: id_ex_next.ALU_ctrl.opr = DIVU;
+                                3'b110: id_ex_next.ALU_ctrl.opr = REM;
+                                3'b111: id_ex_next.ALU_ctrl.opr = REMU;
+                                default: id_ex_next.ALU_ctrl.opr = NOTOPR;
+                            endcase
+                        end
                         default: id_ex_next.ALU_ctrl.opr = NOTOPR;
                     endcase
                 end
@@ -231,12 +251,32 @@ module Decoder import common::*; (
                     id_ex_next.alu_op2_is_rs2      = 1'b1;
                     id_ex_next.uses_rs2            = 1'b1;
                     id_ex_next.ALU_ctrl.word_index = WORD;
-                    unique case (funct3)
-                        3'b000: id_ex_next.ALU_ctrl.opr =
-                            (funct7_full == 7'b0100000) ? SUB : ADD;
-                        3'b001: id_ex_next.ALU_ctrl.opr = SLL;
-                        3'b101: id_ex_next.ALU_ctrl.opr =
-                            (funct7_full == 7'b0100000) ? SRA : SRL;
+                    unique case (funct7_full)
+                        7'b0000000: begin
+                            unique case (funct3)
+                                3'b000: id_ex_next.ALU_ctrl.opr = ADD;
+                                3'b001: id_ex_next.ALU_ctrl.opr = SLL;
+                                3'b101: id_ex_next.ALU_ctrl.opr = SRL;
+                                default: id_ex_next.ALU_ctrl.opr = NOTOPR;
+                            endcase
+                        end
+                        7'b0100000: begin
+                            unique case (funct3)
+                                3'b000: id_ex_next.ALU_ctrl.opr = SUB;
+                                3'b101: id_ex_next.ALU_ctrl.opr = SRA;
+                                default: id_ex_next.ALU_ctrl.opr = NOTOPR;
+                            endcase
+                        end
+                        7'b0000001: begin
+                            unique case (funct3)
+                                3'b000: id_ex_next.ALU_ctrl.opr = MUL;
+                                3'b100: id_ex_next.ALU_ctrl.opr = DIV;
+                                3'b101: id_ex_next.ALU_ctrl.opr = DIVU;
+                                3'b110: id_ex_next.ALU_ctrl.opr = REM;
+                                3'b111: id_ex_next.ALU_ctrl.opr = REMU;
+                                default: id_ex_next.ALU_ctrl.opr = NOTOPR;
+                            endcase
+                        end
                         default: id_ex_next.ALU_ctrl.opr = NOTOPR;
                     endcase
                 end

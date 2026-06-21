@@ -366,6 +366,8 @@ typedef struct packed {
 typedef struct packed {
     u32 instr;
     u64 pc;
+    logic pred_taken;
+    u64 pred_target;
 } decoder_ctrl_t;
 
 /**

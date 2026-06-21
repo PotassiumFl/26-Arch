@@ -22,6 +22,12 @@ module Fetch import common::*;(
 
     u64 pc;
     u32 instr;
+    funct7_t instr_opcode;
+    i64 imm_b;
+    i64 imm_j;
+    logic pred_taken;
+    addr_t pred_target;
+    addr_t next_pc;
 
     /**
      * Fetch state indicate
@@ -47,6 +53,27 @@ module Fetch import common::*;(
     assign dreq.access = DBUS_FETCH;
     assign dreq.priv   = priv_mode;
     assign fetch_pc    = pc;
+
+    assign instr_opcode = funct7_t'(instr[6:0]);
+    assign imm_b = {{52{instr[31]}}, instr[7], instr[30:25], instr[11:8], 1'b0};
+    assign imm_j = {{44{instr[31]}}, instr[19:12], instr[20], instr[30:21], 1'b0};
+
+    always_comb begin : predict_next_pc
+        pred_taken  = 1'b0;
+        pred_target = pc + 64'd4;
+        unique case (instr_opcode)
+            JAL: begin
+                pred_taken  = instr_valid;
+                pred_target = pc + imm_j;
+            end
+            BRANCH: begin
+                pred_taken  = instr_valid && imm_b[63];
+                pred_target = pc + imm_b;
+            end
+            default: ;
+        endcase
+        next_pc = pred_taken ? pred_target : (pc + 64'd4);
+    end
 
     always_ff @(posedge clk or posedge reset) begin : fetch_main
         if(reset) begin
@@ -83,7 +110,7 @@ module Fetch import common::*;(
                 end
             end
             else if(!stall) begin
-                pc <= pc + 4;
+                pc <= next_pc;
                 waiting <= 1'b1;
                 instr_valid <= 1'b0;
             end
@@ -94,9 +121,11 @@ module Fetch import common::*;(
      * store pipeline
      */
     always_comb begin
-        if_id_next.valid              = instr_valid;
-        if_id_next.decoder_ctrl.instr = instr;
-        if_id_next.decoder_ctrl.pc    = pc;
+        if_id_next.valid                    = instr_valid;
+        if_id_next.decoder_ctrl.instr       = instr;
+        if_id_next.decoder_ctrl.pc          = pc;
+        if_id_next.decoder_ctrl.pred_taken  = pred_taken;
+        if_id_next.decoder_ctrl.pred_target = pred_target;
     end
 
     /**

@@ -6,6 +6,7 @@
 `include "include/csr.sv"
 `include "src/CsrRegs.sv"
 `include "src/Fetch.sv"
+`include "src/MulDivUnit.sv"
 `include "src/ALU.sv"
 `include "src/Decoder.sv"
 `include "src/Forward.sv"
@@ -85,6 +86,7 @@ module CPU import common::*; import csr_pkg::*; (
     logic    hazard_stall;
     logic    stall_ex;
     logic    mem_busy;
+    logic    muldiv_busy;
     logic    wb_fire;
     MEM_WB_t wb_next;
 
@@ -151,7 +153,7 @@ module CPU import common::*; import csr_pkg::*; (
     assign ireq = '0;
     assign ex_mem_mem_op = ex_mem.valid && ex_mem.mem_op != MEM_NONE;
     assign stall_fetch =
-        hazard_stall | ex_mem_mem_op;
+        hazard_stall | ex_mem_mem_op | muldiv_busy;
     assign stall_ex =
         hazard_stall | (ex_mem_mem_op && !(mem_busy && dresp.data_ok));
     assign redirect_take_branch = redirect_valid_alu & ~stall_ex;
@@ -521,6 +523,7 @@ module CPU import common::*; import csr_pkg::*; (
         .reset(reset),
         .stall(stall_ex),
         .pipeline_flush(pipeline_flush),
+        .muldiv_busy(muldiv_busy),
         .id_ex(id_ex),
         .mem_wb(mem_wb),
         .wb_fire(wb_fire),
