@@ -21,7 +21,7 @@ module Forward import common::*;(
         forwardB = FORWARD_NONE;
 
         if (ex_mem.reg_write && ex_mem.wd != 0 && ex_mem.wd == id_ex.rs1) begin
-            if (ex_mem.mem_op == MEM_LOAD) begin
+            if (ex_mem.mem_op == MEM_LOAD || ex_mem.mem_op == MEM_ATOMIC) begin
                 if (wb_fire)
                     forwardA = FORWARD_WB;
             end else
@@ -30,7 +30,7 @@ module Forward import common::*;(
             forwardA = FORWARD_EX;
 
         if (ex_mem.reg_write && ex_mem.wd != 0 && ex_mem.wd == id_ex.rs2) begin
-            if (ex_mem.mem_op == MEM_LOAD) begin
+            if (ex_mem.mem_op == MEM_LOAD || ex_mem.mem_op == MEM_ATOMIC) begin
                 if (wb_fire)
                     forwardB = FORWARD_WB;
             end else

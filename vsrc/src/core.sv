@@ -22,7 +22,10 @@ module core import common::*; import csr_pkg::*;(
 	input  u64         mmu_fault_vaddr,
 	input  u64         mmu_fault_cause,
 	output priv_mode_t priv_mode,
-	output u64         satp
+	output u64         satp,
+	output u64         pmpaddr0,
+	output u64         pmpcfg0,
+	output u64         mstatus_out
 );
 
 	/**
@@ -48,6 +51,8 @@ module core import common::*; import csr_pkg::*;(
 	u64 	mie_c;
 	u64 	mscratch_c;
 	u64 	satp_c;
+	u64 	pmpaddr0_c;
+	u64 	pmpcfg0_c;
 	u64 	mideleg_c;
 	u64 	medeleg_c;
 	u64 	sepc_c;
@@ -93,6 +98,8 @@ module core import common::*; import csr_pkg::*;(
 		.mie_c(mie_c),
 		.mscratch_c(mscratch_c),
 		.satp_c(satp_c),
+		.pmpaddr0_c(pmpaddr0_c),
+		.pmpcfg0_c(pmpcfg0_c),
 		.mideleg_c(mideleg_c),
 		.medeleg_c(medeleg_c),
 		.sepc_c(sepc_c),
@@ -104,6 +111,9 @@ module core import common::*; import csr_pkg::*;(
 	);
 
 	assign satp = satp_c;
+	assign pmpaddr0 = pmpaddr0_c;
+	assign pmpcfg0 = pmpcfg0_c;
+	assign mstatus_out = mstatus_c;
 
 `ifdef VERILATOR
 	DifftestInstrCommit DifftestInstrCommit(

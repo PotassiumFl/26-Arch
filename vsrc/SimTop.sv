@@ -31,6 +31,9 @@ module SimTop import common::*;(
     cbus_resp_t dcresp;
     priv_mode_t priv_mode;
     u64 satp;
+    u64 mstatus_c;
+    u64 pmpaddr0;
+    u64 pmpcfg0;
     logic mmu_fault_valid;
     u64 mmu_fault_vaddr;
     u64 mmu_fault_cause;
@@ -42,7 +45,8 @@ module SimTop import common::*;(
       .dreq(mem_dreq), .dresp(mem_dresp),
       .trint, .swint, .exint,
       .mmu_fault_valid, .mmu_fault_vaddr, .mmu_fault_cause,
-      .priv_mode, .satp
+      .priv_mode, .satp,
+      .pmpaddr0, .pmpcfg0, .mstatus_out(mstatus_c)
     );
 
     DBusArbiter dbus_mux(
@@ -56,6 +60,8 @@ module SimTop import common::*;(
     MMU mmu(
         .clk(clock), .reset,
         .priv_mode, .satp,
+        .mstatus(mstatus_c),
+        .pmpaddr0, .pmpcfg0,
         .vreq(cpu_dreq),
         .vresp(cpu_dresp),
         .preq(mmu_dreq),

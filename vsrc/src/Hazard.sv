@@ -13,7 +13,8 @@ module Hazard import common::*; (
 
     always_comb begin
         stall = 1'b0;
-        if (id_ex.valid && ex_mem.valid && ex_mem.mem_op == MEM_LOAD
+        if (id_ex.valid && ex_mem.valid &&
+                (ex_mem.mem_op == MEM_LOAD || ex_mem.mem_op == MEM_ATOMIC)
             && ex_mem.reg_write && ex_mem.wd != 5'b0) begin
             if (id_ex.rs1 != 5'b0 && id_ex.rs1 == ex_mem.wd)
                 stall = 1'b1;

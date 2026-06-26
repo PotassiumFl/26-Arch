@@ -266,6 +266,7 @@ typedef enum i7{
     JALR      = 7'b1100111,
     AUIPC     = 7'b0010111,
     SYSTEM    = 7'b1110011,
+    AMO       = 7'b0101111,
     CUSTOM_TRAP = 7'b1101011
 } funct7_t;
 
@@ -324,11 +325,26 @@ typedef enum i2 {
     SYS_SRET  = 2'd3
 } system_op_t;
 
-typedef enum i2 {
-    MEM_NONE  = 2'd0,
-    MEM_LOAD  = 2'd1,
-    MEM_STORE = 2'd2
+typedef enum i3 {
+    MEM_NONE   = 3'd0,
+    MEM_LOAD   = 3'd1,
+    MEM_STORE  = 3'd2,
+    MEM_ATOMIC = 3'd3
 } mem_op_t; // memory control type
+
+typedef enum i5 {
+    AMO_ADD    = 5'b00000,
+    AMO_SWAP   = 5'b00001,
+    AMO_LR     = 5'b00010,
+    AMO_SC     = 5'b00011,
+    AMO_XOR    = 5'b00100,
+    AMO_OR     = 5'b00101,
+    AMO_AND    = 5'b00110,
+    AMO_MIN    = 5'b00111,
+    AMO_MAX    = 5'b01000,
+    AMO_MINU   = 5'b01001,
+    AMO_MAXU   = 5'b01010
+} amo_funct5_t;
 
 typedef enum i2 {
     CFLOW_ALU  = 2'd0, // normal ALU / AUIPC / LUI / loads
@@ -391,6 +407,7 @@ typedef struct packed {
     u1              alu_op2_is_rs2; // 1: operandB from forwarded rs2 (R-type)
     mem_op_t        mem_op;
     u3              ls_funct3;
+    amo_funct5_t    amo_funct5;
     cflow_t         cflow;          // control flow class
     i64             imm_pc;         // B/J offset or JALR I-immediate
     u1              is_csr;
@@ -410,6 +427,7 @@ typedef struct packed {
     u1              reg_write;      // for forward identifier and write back
     mem_op_t        mem_op;
     u3              ls_funct3;
+    amo_funct5_t    amo_funct5;
     i64             store_data;
     u1              is_csr;
     csr_addr_t      csr_addr;

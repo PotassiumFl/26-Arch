@@ -50,7 +50,8 @@ module Decoder import common::*; (
         : (csr_sys_imm ? 5'b0 : instr[19:15]);
     assign RegFile_read.rs2 =
         (opcode == LUI || opcode == AUIPC || opcode == LOAD || opcode == JAL
-            || opcode == JALR || opcode == SYSTEM) ? 5'b0 : instr[24:20];
+            || opcode == JALR || opcode == SYSTEM) ? 5'b0
+        : (opcode == AMO && instr[31:27] == 5'b00010) ? 5'b0 : instr[24:20];
 
     always_comb begin : main_decoder_logic
         id_ex_next = '0;
@@ -284,6 +285,24 @@ module Decoder import common::*; (
                 CUSTOM_TRAP: begin
                     id_ex_next.reg_write = 1'b0;
                     id_ex_next.ALU_ctrl.opr = NOTOPR;
+                end
+
+                AMO: begin
+                    if (funct3 == 3'b010) begin
+                        unique case (amo_funct5_t'(instr[31:27]))
+                            AMO_ADD, AMO_SWAP, AMO_LR, AMO_SC, AMO_XOR, AMO_OR,
+                            AMO_AND, AMO_MIN, AMO_MAX, AMO_MINU, AMO_MAXU: begin
+                                id_ex_next.reg_write         = 1'b1;
+                                id_ex_next.mem_op            = MEM_ATOMIC;
+                                id_ex_next.amo_funct5        = amo_funct5_t'(instr[31:27]);
+                                id_ex_next.uses_rs2          = (instr[31:27] != 5'b00010);
+                                id_ex_next.ALU_ctrl.operand2 = 64'b0;
+                                id_ex_next.ALU_ctrl.opr      = ADD;
+                            end
+                            default: id_ex_next.illegal = 1'b1;
+                        endcase
+                    end else
+                        id_ex_next.illegal = 1'b1;
                 end
 
                 SYSTEM: begin

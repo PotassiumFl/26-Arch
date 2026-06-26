@@ -38,6 +38,8 @@ module CsrRegs import common::*; import csr_pkg::*; (
     output u64     dbg_satp,
     output u64     dbg_mideleg,
     output u64     dbg_medeleg,
+    output u64     dbg_pmpaddr0,
+    output u64     dbg_pmpcfg0,
 
     output u64     dbg_sepc,
     output u64     dbg_stval,
@@ -70,6 +72,8 @@ module CsrRegs import common::*; import csr_pkg::*; (
     assign dbg_satp     = satp_r;
     assign dbg_mideleg  = mideleg_r;
     assign dbg_medeleg  = medeleg_r;
+    assign dbg_pmpaddr0 = pmpaddr0_r;
+    assign dbg_pmpcfg0  = pmpcfg0_r;
     assign dbg_sepc     = sepc_r;
     assign dbg_stval    = stval_r;
     assign dbg_stvec    = stvec_r;
@@ -202,8 +206,12 @@ module CsrRegs import common::*; import csr_pkg::*; (
                     CSR_MIDELEG:
                         mideleg_r <= (~MIDELEG_MASK & mideleg_r) |
                             (write_data & MIDELEG_MASK);
-                    CSR_PMPADDR0: pmpaddr0_r <= write_data;
-                    CSR_PMPCFG0:  pmpcfg0_r <= write_data;
+                    CSR_PMPADDR0:
+                        pmpaddr0_r <= (~PMPADDR0_MASK & pmpaddr0_r) |
+                            (write_data & PMPADDR0_MASK);
+                    CSR_PMPCFG0:
+                        pmpcfg0_r <= (~PMPCFG0_MASK & pmpcfg0_r) |
+                            (write_data & PMPCFG0_MASK);
                     default: ;
                 endcase
             end

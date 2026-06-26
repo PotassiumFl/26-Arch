@@ -42,6 +42,8 @@ package csr_pkg;
   parameter u64 SIE_MASK  = MIP_MASK;
   parameter u64 SIP_MASK  = MIP_MASK;
   parameter u64 STVEC_MASK = MTVEC_MASK;
+  parameter u64 PMPCFG0_MASK  = 64'hFF;
+  parameter u64 PMPADDR0_MASK   = 64'h0000_0FFF_FFFF_FFFF;
 
   typedef struct packed {
     u1 sd;

@@ -248,6 +248,7 @@ module ALU import common::*; (
             ex_mem_next.valid        = id_ex.valid;
             ex_mem_next.mem_op       = id_ex.mem_op;
             ex_mem_next.ls_funct3    = id_ex.ls_funct3;
+            ex_mem_next.amo_funct5   = id_ex.amo_funct5;
             ex_mem_next.store_data   = forwarded_rs2;
             ex_mem_next.is_csr       = id_ex.is_csr;
             ex_mem_next.csr_addr     = id_ex.csr_addr;

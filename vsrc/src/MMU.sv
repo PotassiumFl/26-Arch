@@ -3,14 +3,19 @@
 
 `ifdef VERILATOR
 `include "include/common.sv"
+`include "src/PMP.sv"
 `endif
 
 module MMU
-    import common::*; (
+    import common::*;
+    import pmp_pkg::*; (
     input  logic       clk,
     input  logic       reset,
     input  priv_mode_t priv_mode,
     input  u64         satp,
+    input  u64         mstatus,
+    input  u64         pmpaddr0,
+    input  u64         pmpcfg0,
     input  dbus_req_t  vreq,
     output dbus_resp_t vresp,
     output dbus_req_t  preq,
@@ -46,6 +51,8 @@ module MMU
     logic perm_ok;
     logic align_ok;
     u64 translated_addr;
+    logic passthrough_pmp_ok;
+    logic access_pmp_ok;
 
     assign translate_en = (priv_mode != PRIV_M) && (satp[63:60] == 4'd8);
 
@@ -109,6 +116,12 @@ module MMU
             2'd1: translated_addr = {8'b0, pte[53:19], saved_req.addr[20:0]};
             default: translated_addr = {8'b0, pte[53:10], saved_req.addr[11:0]};
         endcase
+
+        passthrough_pmp_ok = !vreq.valid || pmp_check(
+            vreq.addr, vreq.access, vreq.priv, mstatus, pmpaddr0, pmpcfg0);
+        access_pmp_ok = pmp_check(
+            translated_addr, saved_req.access, saved_req.priv,
+            mstatus, pmpaddr0, pmpcfg0);
     end
 
     assign preq = preq_hold ? preq_q : preq_next;
@@ -123,7 +136,7 @@ module MMU
 
         unique case (state)
             S_IDLE: begin
-                if (!translate_en) begin
+                if (!translate_en && passthrough_pmp_ok) begin
                     preq_next = vreq;
                     vresp = presp;
                 end
@@ -139,8 +152,10 @@ module MMU
                 preq_next.priv   = PRIV_M;
             end
             S_ACCESS: begin
-                preq_next = saved_req;
-                preq_next.addr = translated_addr;
+                if (access_pmp_ok) begin
+                    preq_next = saved_req;
+                    preq_next.addr = translated_addr;
+                end
             end
             S_ACCESS_WAIT: begin
                 vresp = presp;
@@ -156,7 +171,7 @@ module MMU
 
     logic preq_drop;
     assign preq_drop = state == S_FAULT
-        || (state == S_ACCESS && (!pte_valid || !perm_ok || !align_ok));
+        || (state == S_ACCESS && (!pte_valid || !perm_ok || !align_ok || !access_pmp_ok));
 
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
@@ -191,6 +206,10 @@ module MMU
                         level <= 2'd2;
                         fault_cause_r <= page_fault_cause(vreq.access);
                         state <= S_WALK_REQ;
+                    end else if (!translate_en && vreq.valid && !passthrough_pmp_ok) begin
+                        saved_req <= vreq;
+                        fault_cause_r <= pmp_fault_cause(vreq.access);
+                        state <= S_FAULT;
                     end
                 end
                 S_WALK_REQ: begin
@@ -217,7 +236,11 @@ module MMU
                     end
                 end
                 S_ACCESS: begin
-                    if (!pte_valid || !perm_ok || !align_ok)
+                    if (!pte_valid || !perm_ok || !align_ok || !access_pmp_ok)
+                        fault_cause_r <= (!pte_valid || !perm_ok || !align_ok) ?
+                            page_fault_cause(saved_req.access) :
+                            pmp_fault_cause(saved_req.access);
+                    if (!pte_valid || !perm_ok || !align_ok || !access_pmp_ok)
                         state <= S_FAULT;
                     else
                         state <= S_ACCESS_WAIT;
@@ -233,8 +256,6 @@ module MMU
             endcase
         end
     end
-
-    `UNUSED_OK({priv_mode});
 endmodule
 
 `endif

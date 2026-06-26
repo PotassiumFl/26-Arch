@@ -53,6 +53,8 @@ module CPU import common::*; import csr_pkg::*; (
 	output u64          mie_c,
 	output u64          mscratch_c,
 	output u64          satp_c,
+	output u64          pmpaddr0_c,
+	output u64          pmpcfg0_c,
 	output u64          mideleg_c,
 	output u64          medeleg_c,
 	output u64          sepc_c,
@@ -86,6 +88,8 @@ module CPU import common::*; import csr_pkg::*; (
     logic    hazard_stall;
     logic    stall_ex;
     logic    mem_busy;
+    logic    atomic_busy;
+    logic    mem_inst_done;
     logic    muldiv_busy;
     logic    wb_fire;
     MEM_WB_t wb_next;
@@ -155,7 +159,7 @@ module CPU import common::*; import csr_pkg::*; (
     assign stall_fetch =
         hazard_stall | ex_mem_mem_op | muldiv_busy;
     assign stall_ex =
-        hazard_stall | (ex_mem_mem_op && !(mem_busy && dresp.data_ok));
+        hazard_stall | (ex_mem_mem_op && !mem_inst_done);
     assign redirect_take_branch = redirect_valid_alu & ~stall_ex;
     assign csr_commit_flush     = wb_fire & wb_next.valid & wb_next.is_csr;
     assign ecall_commit         = wb_fire & wb_next.valid && (wb_next.system_op == SYS_ECALL);
@@ -259,10 +263,10 @@ module CPU import common::*; import csr_pkg::*; (
     end
 
     assign trap_event = mmu_fault_valid | trap_id_illegal | alu_trap_valid |
-        mem_trap_valid | interrupt_trap | ecall_commit;
+        mem_trap_valid | (interrupt_trap & !atomic_busy) | ecall_commit;
     assign pipeline_flush = trap_event;
     assign trap_suppress  = mmu_fault_valid | trap_id_illegal | alu_trap_valid |
-        mem_trap_valid | interrupt_trap;
+        mem_trap_valid | (interrupt_trap & !atomic_busy);
 
     assign redirect_valid_fetch =
         trap_event | mret_commit | sret_commit | csr_commit_flush | redirect_take_branch;
@@ -453,6 +457,8 @@ module CPU import common::*; import csr_pkg::*; (
                     .dbg_mie      (mie_c),
                     .dbg_mscratch (mscratch_c),
                     .dbg_satp     (satp_c),
+                    .dbg_pmpaddr0 (pmpaddr0_c),
+                    .dbg_pmpcfg0  (pmpcfg0_c),
                     .dbg_mideleg  (mideleg_c),
                     .dbg_medeleg  (medeleg_c),
                     .dbg_sepc     (sepc_c),
@@ -549,6 +555,8 @@ module CPU import common::*; import csr_pkg::*; (
         .dreq(dreq),
         .dresp(dresp),
         .mem_busy(mem_busy),
+        .atomic_busy(atomic_busy),
+        .mem_inst_done(mem_inst_done),
         .wb_fire(wb_fire),
         .wb_next(wb_next),
         .trap_valid(mem_trap_valid),
