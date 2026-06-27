@@ -12,6 +12,7 @@ module DBusArbiter
 ) (
     input  logic       clk,
     input  logic       reset,
+    input  logic       flush,
     input  dbus_req_t  [MAX_INDEX:0] ireqs,
     output dbus_resp_t [MAX_INDEX:0] iresps,
     output dbus_req_t  oreq,
@@ -47,6 +48,9 @@ module DBusArbiter
         if (reset) begin
             busy <= 1'b0;
             index <= 0;
+            saved_req <= '0;
+        end else if (flush) begin
+            busy <= 1'b0;
             saved_req <= '0;
         end else if (busy) begin
             if (oresp.data_ok) begin

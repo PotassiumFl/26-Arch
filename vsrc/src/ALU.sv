@@ -137,6 +137,9 @@ module ALU import common::*; (
 
     assign jalr_target = operandA + id_ex.imm_pc;
 
+    addr_t jalr_target_aligned;
+    assign jalr_target_aligned = jalr_target & ~64'd1;
+
     always_comb begin : redirect_logic
         automatic addr_t branch_target;
         automatic addr_t branch_fallthrough;
@@ -170,9 +173,9 @@ module ALU import common::*; (
                     end
                 end
                 CFLOW_JALR: begin
-                    if (jalr_target[1:0] == 2'b00) begin
+                    if (jalr_target_aligned[1:0] == 2'b00) begin
                         redirect_valid = 1'b1;
-                        redirect_pc    = jalr_target & ~64'd1;
+                        redirect_pc    = jalr_target_aligned;
                     end
                 end
                 default: ;
@@ -181,9 +184,9 @@ module ALU import common::*; (
     end
 
     assign trap_valid = id_ex.valid && id_ex.cflow == CFLOW_JALR &&
-        (jalr_target[1:0] != 2'b00);
+        (jalr_target_aligned[1:0] != 2'b00);
     assign trap_cause = 64'd0;
-    assign trap_tval  = jalr_target;
+    assign trap_tval  = jalr_target_aligned;
     assign trap_epc   = id_ex.decoder_ctrl.pc;
 
     logic [31:0] a32, b32, r32;

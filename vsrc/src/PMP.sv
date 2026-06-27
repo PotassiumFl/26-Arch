@@ -60,6 +60,7 @@ function automatic logic pmp_entry_match(
     input logic [1:0] a
 );
     unique case (a)
+        2'd1: return paddr < (cfg_addr << 2); // TOR entry 0: [0, addr)
         2'd2: return pmp_na4_match(paddr, cfg_addr);
         2'd3: return pmp_napot_match(paddr, cfg_addr);
         default: return 1'b0;

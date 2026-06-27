@@ -156,28 +156,31 @@ module CsrRegs import common::*; import csr_pkg::*; (
                     mstatus_r[3]     <= 1'b0;              // MIE <= 0
                     mstatus_r[12:11] <= trap_prev_priv;
                 end
-            end
-            else if (mret_en) begin
-                mstatus_r[3]    <= mstatus_r[7];      // MIE <= MPIE
-                mstatus_r[7]    <= 1'b1;              // MPIE <= 1
-                mstatus_r[12:11]<= PRIV_U;
+            end else if (mret_en) begin
+                mstatus_r[3]     <= mstatus_r[7];      // MIE <= MPIE
+                mstatus_r[7]     <= 1'b1;              // MPIE <= 1
+                mstatus_r[12:11] <= PRIV_U;            // MPP <= U
                 if (mstatus_r[12:11] != PRIV_M)
-                    mstatus_r[17] <= 1'b0;            // MPRV <= 0 when returning below M
-            end
-            else if (sret_en) begin
+                    mstatus_r[17] <= 1'b0;             // Clear MPRV when returning below M
+            end else if (sret_en) begin
                 mstatus_r[1] <= mstatus_r[5];         // SIE <= SPIE
                 mstatus_r[5] <= 1'b1;                 // SPIE <= 1
                 mstatus_r[8] <= 1'b0;                 // SPP <= U
                 mstatus_r[17] <= 1'b0;                // y != M => clear MPRV
             end
-            else if (write_en && write_addr != CSR_MCYCLE) begin
+
+            // Retiring CSR writes in WB must not be dropped when a trap is taken
+            // in the same cycle (e.g. csrw mtvec interrupted by a timer IRQ).
+            if (write_en && write_addr != CSR_MCYCLE) begin
                 unique case (write_addr)
                     CSR_MSTATUS:
-                        mstatus_r <= (~MSTATUS_MASK & mstatus_r) |
-                            (write_data & MSTATUS_MASK);
+                        if (!trap_en)
+                            mstatus_r <= (~MSTATUS_MASK & mstatus_r) |
+                                (write_data & MSTATUS_MASK);
                     CSR_SSTATUS:
-                        mstatus_r <= (~SSTATUS_MASK & mstatus_r) |
-                            (write_data & SSTATUS_MASK);
+                        if (!trap_en)
+                            mstatus_r <= (~SSTATUS_MASK & mstatus_r) |
+                                (write_data & SSTATUS_MASK);
                     CSR_MIE: mie_r <= write_data;
                     CSR_SIE:
                         sie_r <= (~SIE_MASK & sie_r) | (write_data & SIE_MASK);
@@ -189,12 +192,18 @@ module CsrRegs import common::*; import csr_pkg::*; (
                             (write_data & STVEC_MASK);
                     CSR_MSCRATCH: mscratch_r <= write_data;
                     CSR_SSCRATCH: sscratch_r <= write_data;
-                    CSR_MEPC: mepc_r <= write_data;
-                    CSR_SEPC: sepc_r <= write_data;
-                    CSR_MCAUSE: mcause_r <= write_data;
-                    CSR_SCAUSE: scause_r <= write_data;
-                    CSR_MTVAL: mtval_r <= write_data;
-                    CSR_STVAL: stval_r <= write_data;
+                    CSR_MEPC:
+                        if (!trap_en) mepc_r <= write_data;
+                    CSR_SEPC:
+                        if (!trap_en) sepc_r <= write_data;
+                    CSR_MCAUSE:
+                        if (!trap_en) mcause_r <= write_data;
+                    CSR_SCAUSE:
+                        if (!trap_en) scause_r <= write_data;
+                    CSR_MTVAL:
+                        if (!trap_en) mtval_r <= write_data;
+                    CSR_STVAL:
+                        if (!trap_en) stval_r <= write_data;
                     CSR_MIP:
                         mip_r <= (~MIP_MASK & mip_r) | (write_data & MIP_MASK);
                     CSR_SIP:

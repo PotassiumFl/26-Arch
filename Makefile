@@ -97,6 +97,20 @@ test-labplus-3: sim
 test-labplus-4: sim
 	TEST=all ./build/emu --no-diff -i ./ready-to-run/lab+/4/all-test-privfull.bin $(VOPT) || true
 
+test-disk-probe: sim
+	python3 ./ready-to-run/xv6/gen_disk_probe.py
+	./build/emu --no-diff -i ./ready-to-run/xv6/disk_probe.bin --disk ./ready-to-run/xv6/disk_probe.img $(VOPT) || true
+
+build-xv6:
+	bash ./ready-to-run/xv6/build_xv6.sh
+
+test-xv6-boot: sim build-xv6
+	./build/emu --no-diff -i ./ready-to-run/xv6/kernel.bin --disk ./ready-to-run/xv6/fs.img -C 500000000 $(VOPT) 2>&1 | tee /tmp/xv6-boot.log; \
+	grep -q "init: starting sh" /tmp/xv6-boot.log
+
+test-xv6-shell: sim build-xv6
+	./build/emu --no-diff -i ./ready-to-run/xv6/kernel.bin --disk ./ready-to-run/xv6/fs.img -C 50000000000 $(VOPT) || true
+
 clean:
 	rm -rf build
 

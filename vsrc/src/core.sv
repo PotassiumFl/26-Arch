@@ -25,7 +25,8 @@ module core import common::*; import csr_pkg::*;(
 	output u64         satp,
 	output u64         pmpaddr0,
 	output u64         pmpcfg0,
-	output u64         mstatus_out
+	output u64         mstatus_out,
+	output logic       pipeline_flush
 );
 
 	/**
@@ -107,7 +108,8 @@ module core import common::*; import csr_pkg::*;(
 		.stvec_c(stvec_c),
 		.scause_c(scause_c),
 		.sscratch_c(sscratch_c),
-		.custom_trap_commit(custom_trap_commit)
+		.custom_trap_commit(custom_trap_commit),
+		.pipeline_flush_o(pipeline_flush)
 	);
 
 	assign satp = satp_c;

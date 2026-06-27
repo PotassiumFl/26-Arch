@@ -29,22 +29,12 @@ module Fetch import common::*;(
     addr_t pred_target;
     addr_t next_pc;
 
-    /**
-     * Fetch state indicate
-     */
-    logic waiting; 
+    logic waiting;
     logic instr_valid;
-    logic redirect_pending;
-    addr_t redirect_target;
+    logic drop_resp;
 
-    /**
-     * front pipeline
-     */
     IF_ID_t if_id_next;
 
-    /**
-     * dbus ctrl
-     */
     assign dreq.valid  = waiting;
     assign dreq.addr   = pc;
     assign dreq.size   = MSIZE4;
@@ -53,6 +43,10 @@ module Fetch import common::*;(
     assign dreq.access = DBUS_FETCH;
     assign dreq.priv   = priv_mode;
     assign fetch_pc    = pc;
+
+    function automatic u32 fetch_word32(input word_t raw, input addr_t a);
+        return raw[8 * a[2:0] +: 32];
+    endfunction
 
     assign instr_opcode = funct7_t'(instr[6:0]);
     assign imm_b = {{52{instr[31]}}, instr[7], instr[30:25], instr[11:8], 1'b0};
@@ -76,50 +70,33 @@ module Fetch import common::*;(
     end
 
     always_ff @(posedge clk or posedge reset) begin : fetch_main
-        if(reset) begin
+        if (reset) begin
             pc <= PCINIT;
             waiting <= 1'b1;
             instr_valid <= 1'b0;
-            redirect_pending <= 1'b0;
-            redirect_target <= PCINIT;
-        end
-        else begin
-            if(redirect_valid) begin
-                if (waiting) begin
-                    redirect_pending <= 1'b1;
-                    redirect_target <= redirect_pc;
+            drop_resp <= 1'b0;
+        end else if (redirect_valid) begin
+            pc <= redirect_pc;
+            waiting <= 1'b1;
+            instr_valid <= 1'b0;
+            drop_resp <= 1'b1;
+        end else if (waiting) begin
+            if (dresp.data_ok) begin
+                if (drop_resp) begin
+                    drop_resp <= 1'b0;
                 end else begin
-                    pc <= redirect_pc;
-                    waiting <= 1'b1;
-                    redirect_pending <= 1'b0;
-                end
-                instr_valid <= 1'b0;
-            end
-            else if(waiting) begin
-                if(dresp.data_ok) begin
-                    if (redirect_pending) begin
-                        pc <= redirect_target;
-                        waiting <= 1'b1;
-                        instr_valid <= 1'b0;
-                        redirect_pending <= 1'b0;
-                    end else begin
-                        instr <= pc[2] ? dresp.data[63:32] : dresp.data[31:0];
-                        instr_valid <= 1'b1;
-                        waiting <= 1'b0;
-                    end
+                    instr <= fetch_word32(dresp.data, pc);
+                    instr_valid <= 1'b1;
+                    waiting <= 1'b0;
                 end
             end
-            else if(!stall) begin
-                pc <= next_pc;
-                waiting <= 1'b1;
-                instr_valid <= 1'b0;
-            end
+        end else if (!stall) begin
+            pc <= next_pc;
+            waiting <= 1'b1;
+            instr_valid <= 1'b0;
         end
     end
 
-    /**
-     * store pipeline
-     */
     always_comb begin
         if_id_next.valid                    = instr_valid;
         if_id_next.decoder_ctrl.instr       = instr;
@@ -128,15 +105,12 @@ module Fetch import common::*;(
         if_id_next.decoder_ctrl.pred_target = pred_target;
     end
 
-    /**
-     * pipeline step
-     */
     always_ff @(posedge clk or posedge reset) begin : if_id_pipeline
-        if(reset)
+        if (reset)
             if_id <= '0;
-        else if(redirect_valid)
+        else if (redirect_valid)
             if_id <= '0;
-        else if(!stall)
+        else if (!stall)
             if_id <= if_id_next;
     end
 

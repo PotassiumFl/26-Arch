@@ -185,12 +185,9 @@ module Mem import common::*; (
     always_ff @(posedge clk or posedge reset) begin : mem_busy_ff
         if (reset)
             mem_busy <= 1'b0;
-        else if (pipeline_flush) begin
-            if (mem_started && !dresp.data_ok)
-                mem_busy <= 1'b1;
-            else
-                mem_busy <= 1'b0;
-        end else if (in_atomic && atom_state != ATOM_OFF) begin
+        else if (pipeline_flush)
+            mem_busy <= 1'b0;
+        else if (in_atomic && atom_state != ATOM_OFF) begin
             if (atom_state == ATOM_LOAD && dresp.data_ok &&
                     ex_mem.amo_funct5 == AMO_LR)
                 mem_busy <= 1'b0;
@@ -214,7 +211,7 @@ module Mem import common::*; (
     always_ff @(posedge clk or posedge reset) begin
         if (reset)
             mem_started <= 1'b0;
-        else if (pipeline_flush && !mem_started)
+        else if (pipeline_flush)
             mem_started <= 1'b0;
         else if (!mem_busy)
             mem_started <= 1'b0;

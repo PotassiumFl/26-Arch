@@ -37,6 +37,7 @@ module SimTop import common::*;(
     logic mmu_fault_valid;
     u64 mmu_fault_vaddr;
     u64 mmu_fault_cause;
+    logic pipeline_flush;
 
     core core(
       .clk(clock), .reset,
@@ -46,11 +47,13 @@ module SimTop import common::*;(
       .trint, .swint, .exint,
       .mmu_fault_valid, .mmu_fault_vaddr, .mmu_fault_cause,
       .priv_mode, .satp,
-      .pmpaddr0, .pmpcfg0, .mstatus_out(mstatus_c)
+      .pmpaddr0, .pmpcfg0, .mstatus_out(mstatus_c),
+      .pipeline_flush
     );
 
     DBusArbiter dbus_mux(
         .clk(clock), .reset,
+        .flush(pipeline_flush),
         .ireqs({fetch_dreq, mem_dreq}),
         .iresps({fetch_dresp, mem_dresp}),
         .oreq(cpu_dreq),
@@ -59,6 +62,7 @@ module SimTop import common::*;(
 
     MMU mmu(
         .clk(clock), .reset,
+        .flush(pipeline_flush),
         .priv_mode, .satp,
         .mstatus(mstatus_c),
         .pmpaddr0, .pmpcfg0,
@@ -74,6 +78,7 @@ module SimTop import common::*;(
     DBusToCBus dcvt(
         .clk(clock),
         .reset(reset),
+        .flush(pipeline_flush),
         .dreq(mmu_dreq),
         .dresp(mmu_dresp),
         .dcreq(dcreq),

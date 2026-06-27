@@ -11,6 +11,7 @@ module MMU
     import pmp_pkg::*; (
     input  logic       clk,
     input  logic       reset,
+    input  logic       flush,
     input  priv_mode_t priv_mode,
     input  u64         satp,
     input  u64         mstatus,
@@ -73,16 +74,23 @@ module MMU
     function automatic logic leaf_perm_ok(
         input u64 entry,
         input dbus_access_t access,
-        input priv_mode_t mode
+        input priv_mode_t mode,
+        input u64 mstatus
     );
+        logic mxr;
+        logic sum;
         logic ok;
+        mxr = mstatus[19];
+        sum = mstatus[18];
         unique case (access)
             DBUS_FETCH: ok = entry[3];
             DBUS_STORE: ok = entry[2];
-            default:    ok = entry[1];
+            default:    ok = entry[1] || (mxr && entry[3]);
         endcase
         if (mode == PRIV_U)
             ok = ok && entry[4];
+        else if (mode == PRIV_S && entry[4] && !sum)
+            ok = 1'b0;
         return ok;
     endfunction
 
@@ -100,10 +108,12 @@ module MMU
         unique case (saved_req.access)
             DBUS_FETCH: perm_ok = pte[3];
             DBUS_STORE: perm_ok = pte[2];
-            default:    perm_ok = pte[1];
+            default:    perm_ok = pte[1] || (mstatus[19] && pte[3]);
         endcase
         if (saved_req.priv == PRIV_U)
             perm_ok = perm_ok && pte[4];
+        else if (saved_req.priv == PRIV_S && pte[4] && !mstatus[18])
+            perm_ok = 1'b0;
         align_ok = 1'b1;
         if (pte_leaf && level == 2'd2)
             align_ok = (pte[27:10] == 18'b0);
@@ -123,6 +133,18 @@ module MMU
             translated_addr, saved_req.access, saved_req.priv,
             mstatus, pmpaddr0, pmpcfg0);
     end
+
+    u64 satp_prev;
+    logic mmu_flush;
+
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset)
+            satp_prev <= '0;
+        else
+            satp_prev <= satp;
+    end
+
+    assign mmu_flush = flush || (satp != satp_prev);
 
     assign preq = preq_hold ? preq_q : preq_next;
 
@@ -174,7 +196,7 @@ module MMU
         || (state == S_ACCESS && (!pte_valid || !perm_ok || !align_ok || !access_pmp_ok));
 
     always_ff @(posedge clk or posedge reset) begin
-        if (reset) begin
+        if (reset || mmu_flush) begin
             preq_hold <= 1'b0;
             preq_q <= '0;
         end else if (preq_hold) begin
@@ -189,7 +211,7 @@ module MMU
     end
 
     always_ff @(posedge clk or posedge reset) begin
-        if (reset) begin
+        if (reset || mmu_flush) begin
             state <= S_IDLE;
             saved_req <= '0;
             base_addr <= 64'b0;
@@ -221,7 +243,7 @@ module MMU
                         if (!presp.data[0] || (presp.data[2] && !presp.data[1])) begin
                             state <= S_FAULT;
                         end else if (presp.data[1] || presp.data[3]) begin
-                            if (leaf_perm_ok(presp.data, saved_req.access, saved_req.priv)
+                            if (leaf_perm_ok(presp.data, saved_req.access, saved_req.priv, mstatus)
                                     && leaf_align_ok(presp.data, level))
                                 state <= S_ACCESS;
                             else

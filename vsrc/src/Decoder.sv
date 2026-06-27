@@ -41,6 +41,12 @@ module Decoder import common::*; (
 
     logic csr_sys_imm;
 
+    task automatic decode_as_nop(inout ID_EX_t decoded);
+        decoded.reg_write    = 1'b0;
+        decoded.mem_op       = MEM_NONE;
+        decoded.ALU_ctrl.opr = ADD;
+    endtask
+
     assign csr_sys_imm =
         opcode == SYSTEM && (
             funct3 == 3'b101 || funct3 == 3'b110 || funct3 == 3'b111
@@ -287,6 +293,10 @@ module Decoder import common::*; (
                     id_ex_next.ALU_ctrl.opr = NOTOPR;
                 end
 
+                7'b0001111: begin // FENCE
+                    decode_as_nop(id_ex_next);
+                end
+
                 AMO: begin
                     if (funct3 == 3'b010) begin
                         unique case (amo_funct5_t'(instr[31:27]))
@@ -342,6 +352,10 @@ module Decoder import common::*; (
                                 id_ex_next.system_op = SYS_MRET;
                             else if (instr == 32'h10200073)
                                 id_ex_next.system_op = SYS_SRET;
+                            else if (instr == 32'h10500073)
+                                decode_as_nop(id_ex_next); // WFI
+                            else if (instr[31:25] == 7'b0001001)
+                                decode_as_nop(id_ex_next); // SFENCE.VMA
                             else
                                 id_ex_next.illegal = 1'b1;
                         end

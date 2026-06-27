@@ -14,6 +14,7 @@ module DBusToCBus
     import common::*;(
     input  logic       clk,
     input  logic       reset,
+    input  logic       flush,
     input  dbus_req_t  dreq,
     output dbus_resp_t dresp,
     output cbus_req_t  dcreq,
@@ -24,6 +25,9 @@ module DBusToCBus
 
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
+            busy <= 1'b0;
+            saved_req <= '0;
+        end else if (flush) begin
             busy <= 1'b0;
             saved_req <= '0;
         end else if (busy) begin
